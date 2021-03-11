@@ -18,8 +18,8 @@ ipv4="^([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.(([0-9]|[1-9][0-9]|1[
 # os 识别
 function os() {
   os='Unknown'
-  test -x "$(command -v yum --help)" && os='Centos'
-  test -x "$(command -v apt-get --help)" && os='Ubuntu'
+  test -x "$(command -v yum)" && os='CentOS'
+  test -x "$(command -v apt-get)" && os='Ubuntu'
   test 'Darwin' = $(uname -s) && os='Darwin'
   echo $os
 }
