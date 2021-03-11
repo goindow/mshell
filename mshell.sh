@@ -81,13 +81,61 @@ function ensure() {
   done
 }
 
+# 计数 - 符合条件的 session 数量
+# $1 session ID, 模糊匹配
+function count_session() {
+  test -e $session_list_file && cat $session_list_file | jq .id | grep $1 | wc -l || return 0
+}
+
+# 确保 - 仅匹配一个 session
+# $1 调用方命令, 用于提示
+# $2 session ID, 模糊匹配
+function ensure_onlyone_session_matched() {
+  test -z $2 && dialog error "\"$1\" requires a session ID as the argument."
+  count=$(count_session $2)
+  # 0、1+
+  if test $count -eq 0; then
+    dialog error "No matched session: $2"
+  elif test $count -gt 1; then
+    dialog error 'Too many sessions matched, please increase the length of ID search information.'
+  fi
+}
+
+# 生成 - 自动登录脚本
+function generate_autologin_script() {
+  cat > $autologin_expect_file << 'EOF'
+#!/usr/bin/expect
+# Usage: ./autologin.exp host port user [password]
+
+set host [lindex $argv 0]
+set port [lindex $argv 1]
+set user [lindex $argv 2]
+set pwd  [lindex $argv 3]
+
+spawn ssh -p $port $user@$host
+
+expect {
+  "yes/no" { send "yes\r"; exp_continue }
+  "assword:" { send "$pwd\r" }
+}
+
+interact
+EOF
+}
+
+# 确保 - 自动登录脚本存在
+function ensure_autologin_script_exists() {
+  test -x $autologin_expect_file && return
+  generate_autologin_script && chmod +x $autologin_expect_file
+}
+
 # 计算字符串中包含的中文个数, the number of chinese chars in a string
 # printf 中 %ns, 当输入中包含长字节字符串(中文)时, n 计算的是字符长度, 导致对齐失败, 我们希望一个长字节字符串算作一个长度
 # $1 原始字符串
 function ncc() {
   char_length=$(($(echo $1 | wc -c) - 1))         # 一个中文3个 char 长度
   unicode_length=${#1}                            # 一个中文1个 unicode 长度
-  echo $((($char_length - $unicode_length) / 2))  # 一个中文两种计算方式的差值为 2（恰好屏幕中显示中文占用2个屏幕单位宽度）
+  return $((($char_length - $unicode_length) / 2))  # 一个中文两种计算方式的差值为 2（恰好屏幕中显示中文占用2个屏幕单位宽度）
 }
 
 # 屏幕输出包含中文的字符串的偏移量, n+offset 才是屏幕中包含中文字符串 printf 的正确长度
@@ -98,7 +146,7 @@ function printf_offset() {
   ncc_max=$(($2/2))
   offset=0                                              # $ncc == 0 || $ncc > $ncc_max
   test 0 -lt $ncc -a $ncc -le $ncc_max && offset=$ncc   # 0 < $ncc <= $ncc_max
-  echo $offset
+  return $offset
 }
 
 # 屏幕输出包含中文的字符串的切片长度, ${string:0:slice} 才是屏幕中在 n 限制下的正确字符串的最大切片长度, 不超过 n
@@ -113,7 +161,7 @@ function printf_slice() {
   elif test $ncc_max -lt $ncc; then                     # $ncc > $ncc_max
     slice=$(($2-$ncc_max))
   fi
-  echo $slice
+  return $slice
 }
 
 # 构建 list 缓存
@@ -161,26 +209,6 @@ function build_session() {
   printf '{"id":"%s", "name":"%s", "host":"%s", "port":%s, "user":"%s", "password":"%s", "remarks":"%s"}\n' $id "$name" $host $port "$user" "$password" "$remarks"
 }
 
-# 计数 - 符合条件的 session 数量
-# $1 session ID, 模糊匹配
-function count_session() {
-  test -e $session_list_file && cat $session_list_file | jq .id | grep $1 | wc -l || echo 0
-}
-
-# 验证 - 仅匹配一个 session
-# $1 调用方命令, 用于提示
-# $2 session ID, 模糊匹配
-function check_onlyone_session_matched() {
-  test -z $2 && dialog error "\"$1\" requires a session ID as the argument."
-  count=$(count_session $2)
-  # 0、1+
-  if test $count -eq 0; then
-    dialog error "No matched session: $2"
-  elif test $count -gt 1; then
-    dialog error 'Too many sessions matched, please increase the length of ID search information.'
-  fi
-}
-
 # 查看 session 列表
 function list_session() {
   # 更新缓存, -nt 如果左边文件比右边文件新, 则为真
@@ -204,7 +232,7 @@ function inspect_session() {
 # 更新 session
 # $1 session ID, 模糊匹配
 function update_session() {
-  check_onlyone_session_matched 'mshell update' $1
+  ensure_onlyone_session_matched 'mshell update' $1
   id=$(cat $session_list_file | jq .id | grep $1 | trim)
   session=$(build_session $id)
   # sed -i, Unix(Darwin) 和 Linux 有差异, 做兼容处理
@@ -251,13 +279,17 @@ function add_session() {
   build_session >> $session_list_file && dialog ok
 }
 
-# ssh session
+# 登录 session
 function ssh_session() {
-  check_onlyone_session_matched 'mshell ssh|go' $1
-  # todo1: check autologin script exists
-  id=$(cat $session_list_file | jq .id | grep $1 | trim)
-  echo $id
-  # todo2: go
+  ensure_onlyone_session_matched 'mshell ssh|go' $1
+  ensure_autologin_script_exists
+  session=$(cat $session_list_file | grep $1)
+  host=$(echo $session | jq .host | trim)
+  port=$(echo $session | jq .port)
+  user=$(echo $session | jq .user | trim)
+  password=$(echo $session | jq .password | trim)
+  # Usage: ./autologin.exp host port user [password]
+  $autologin_expect_file $host $port $user $password
 }
 
 # 检测命令
@@ -274,6 +306,7 @@ function check_workspace() {
 # 检测依赖
 function check_cmd() {
   check sha1sum
+  check expect
   check jq
 }
 
