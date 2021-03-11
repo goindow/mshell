@@ -15,6 +15,33 @@ autologin_expect_file="$workspace/autologin.exp"
 
 ipv4="^([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$"
 
+
+function usage() {
+  cat << 'EOF'
+Usage: mshell COMMAND [ARGS...]
+
+SSH session management for Mac terminal, while support CentOS,
+Ubuntu, Darwin, including automatic login, public key push etc.
+
+Managment Commands:
+  mshell add                               Create one session
+
+  mshell remove <ID[,...]>                 Remove one or more sessions
+         rm                                Alias for remove
+
+  mshell update <ID>                       Update information of one session
+
+  mshell inspect <ID>                      Return information of one or more sessions
+ 
+  mshell list                              List sessions
+         ls                                Alias for list
+
+Commands:
+  mshell ssh <ID>                          SSH to session, automatical login
+                                           
+EOF
+}
+
 # os 识别
 function os() {
   os='Unknown'
@@ -219,7 +246,7 @@ function list_session() {
 # 查看 session 详情
 # $1 session ID, 模糊匹配
 function inspect_session() {
-  test -z $1 && dialog error '"mshell inspect|show" requires a session ID as the argument.' 
+  test -z $1 && dialog error '"mshell inspect" requires a session ID as the argument.' 
   count=$(count_session $1)
   # 0
   test $count -eq 0 && dialog error "No matched session: $1"
@@ -281,7 +308,7 @@ function add_session() {
 
 # 登录 session
 function ssh_session() {
-  ensure_onlyone_session_matched 'mshell ssh|go' $1
+  ensure_onlyone_session_matched 'mshell ssh' $1
   ensure_autologin_script_exists
   session=$(cat $session_list_file | grep $1)
   host=$(echo $session | jq .host | trim)
@@ -329,16 +356,16 @@ case $1 in
   update)
     update_session $2
   ;;
-  inspect|show)
+  inspect)
     inspect_session $2
   ;;
   list|ls)
     list_session
   ;;
-  ssh|go)
+  ssh)
     ssh_session $2
   ;;
   *)
-    echo "help"
+    usage
   ;;
 esac
