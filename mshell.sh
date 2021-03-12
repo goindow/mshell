@@ -20,8 +20,8 @@ function usage() {
   cat << 'EOF'
 Usage: mshell COMMAND [ARGS...]
 
-SSH session management for Mac terminal, while support CentOS,
-Ubuntu, Darwin, including automatic login, public key push etc.
+  SSH session management for Mac terminal, while support CentOS,
+  Ubuntu, Darwin, including automatic login, public key push etc.
 
 Managment Commands:
   mshell add                               Create one session
@@ -38,7 +38,7 @@ Managment Commands:
 
 Commands:
   mshell ssh <ID>                          SSH to session, automatical login
-                                           
+  
 EOF
 }
 
