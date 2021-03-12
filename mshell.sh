@@ -1,20 +1,18 @@
 #!/bin/bash
 
 # 工作路径，可更换
-# path="~"
-path="/usr/local/var/sh/workspace/mshell"
+path=~
 
 # 工作区
-workspace="${path/%\//}/.mshell"
+workspace=${path/%\//}/.mshell
 # session 数据表, json
-session_list_file="$workspace/session.list"
+session_list_file=$workspace/session.list
 # session 缓存 - list|ls
-session_cache_file="$workspace/session.cache"
+session_cache_file=$workspace/session.cache
 # expect 自动登录脚本
-autologin_expect_file="$workspace/autologin.exp"
+autologin_expect_file=$workspace/autologin.exp
 
 ipv4="^([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$"
-
 
 function usage() {
   cat << 'EOF'
@@ -42,13 +40,18 @@ Commands:
 EOF
 }
 
-# os 识别
 function os() {
   os='Unknown'
   test -x "$(command -v yum)" && os='CentOS'
   test -x "$(command -v apt-get)" && os='Ubuntu'
-  test 'Darwin' = $(uname -s) && os='Darwin'
+  test 'Darwin' == $(uname -s) && os='Darwin'
   echo $os
+}
+
+function adapter() {
+  test 'Darwin' == $os && echo "$(command -v brew)"
+  test 'CentOS' == $os && echo "$(command -v yum)"
+  test 'Ubuntu' == $os && echo "$(command -v apt-get)"
 }
 
 # 去除两端双引号
@@ -80,6 +83,8 @@ function dialog() {
     ok)
       echo 'OK.'
     ;;
+    exit)
+      echo 'exited.'
   esac
   exit 0
 }
@@ -161,8 +166,8 @@ function ensure_autologin_script_exists() {
 # $1 原始字符串
 function ncc() {
   char_length=$(($(echo $1 | wc -c) - 1))         # 一个中文3个 char 长度
-  unicode_length=${#1}                            # 一个中文1个 unicode 长度
-  return $((($char_length - $unicode_length) / 2))  # 一个中文两种计算方式的差值为 2（恰好屏幕中显示中文占用2个屏幕单位宽度）
+  unicode_length=${#1}                            # 一个中文1个 unicode 长
+  echo $((($char_length - $unicode_length) / 2))  # 一个中文两种计算方式的差值为 2（恰好屏幕中显示中文占用2个屏幕单位宽度）
 }
 
 # 屏幕输出包含中文的字符串的偏移量, n+offset 才是屏幕中包含中文字符串 printf 的正确长度
@@ -173,7 +178,7 @@ function printf_offset() {
   ncc_max=$(($2/2))
   offset=0                                              # $ncc == 0 || $ncc > $ncc_max
   test 0 -lt $ncc -a $ncc -le $ncc_max && offset=$ncc   # 0 < $ncc <= $ncc_max
-  return $offset
+  echo $offset
 }
 
 # 屏幕输出包含中文的字符串的切片长度, ${string:0:slice} 才是屏幕中在 n 限制下的正确字符串的最大切片长度, 不超过 n
@@ -188,7 +193,7 @@ function printf_slice() {
   elif test $ncc_max -lt $ncc; then                     # $ncc > $ncc_max
     slice=$(($2-$ncc_max))
   fi
-  return $slice
+  echo $slice
 }
 
 # 构建 list 缓存
@@ -263,7 +268,7 @@ function update_session() {
   id=$(cat $session_list_file | jq .id | grep $1 | trim)
   session=$(build_session $id)
   # sed -i, Unix(Darwin) 和 Linux 有差异, 做兼容处理
-  test 'Darwin' = $os && sed -i "" "s/.*$id.*/$session/" $session_list_file || sed -i "s/.*$id.*/$session/" $session_list_file
+  test 'Darwin' == $os && sed -i "" "s/.*$id.*/$session/" $session_list_file || sed -i "s/.*$id.*/$session/" $session_list_file
   dialog ok
 }
 
@@ -271,32 +276,28 @@ function update_session() {
 # $@ session IDs, 模糊匹配, 可以批量删除
 function remove_session() {
   test $# -eq 0 && dialog error '"mshell remove|rm" requires at least one session ID as the argument.'
-  # 查询删除集合
-  index=0
-  rmlist=()
+  # 待删除集合
+  list=()
   for id in $@; do
     count=$(count_session $id)
     # 1, 只处理每个参数对应一个 session 的情况（如果某一个参数查询到多个 session，忽略）
     if test $count -eq 1; then
-      rmlist[$index]=$(cat $session_list_file | jq .id | grep $id | trim)
-      index=$(($index+1))
+      list+=($(cat $session_list_file | jq .id | grep $id | trim))      
     fi
   done
-  # 无匹配的 session
-  test ${#rmlist[@]} -eq 0 && dialog error "No matched session: $*"
-  # 有匹配的 session
-  rmlist=($(array_uniq ${rmlist[@]}))
-  echo "Match to ${#rmlist[@]} sessions":
-  for id in ${rmlist[@]}; do
+  test ${#list[@]} -eq 0 && dialog error "No matched session: $*"
+  # 匹配到 session
+  list=($(array_uniq ${list[@]}))
+  echo "Match to ${#list[@]} sessions:"
+  for id in ${list[@]}; do
     cat $session_list_file | grep $id | jq .
   done
   # 用户确认
-  ensure 'Remove the above session'
-  test $? -ne 0 && echo 'exited.' && exit 0
-  # 确认删除
-  for id in ${rmlist[@]}; do
+  ensure 'Remove the above session' || dialog exit
+  # 删除
+  for id in ${list[@]}; do
     # sed -i, Unix(Darwin) 和 Linux 有差异, 做兼容处理
-    test 'Darwin' = $os && sed -i "" "/.*$id.*/d" $session_list_file || sed -i "/.*$id.*/d" $session_list_file
+    test 'Darwin' == $os && sed -i "" "/.*$id.*/d" $session_list_file || sed -i "/.*$id.*/d" $session_list_file
   done
   dialog ok
 }
@@ -319,27 +320,50 @@ function ssh_session() {
   $autologin_expect_file $host $port $user $password
 }
 
-# 检测命令
-function check() {
-  test ! -x "$(command -v $1)" && dialog error "$1 not found, must be installed first."
+function install_expect() {
+  $(adapter) install -y expect
 }
 
-# 检测工作区
+function install_jq() {
+  $(adapter) install -y jq
+}
+
+function install_sha1sum() {
+  test 'Darwin' == $os && brew install -y md5sha1sum
+}
+
+function install_brew() {
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  test ! -x "$(command -v brew)" && dialog fatal "Failed to install brew, please manually install dependencies first. If already installed, add to the PATH."
+  brew update
+}
+
+function check_dependencies() {
+  dependencies=(brew sha1sum jq expect)
+  test 'Darwin' != $os && unset dependencies[0]
+  # 待安装集合
+  for dependence in ${dependencies[@]}; do
+    test ! -x "$(command -v $dependence)" && list+=($dependence)
+  done
+  test ${#list[@]} -eq 0 && return
+  # 缺失必要依赖
+  echo -e "Lack of necessary dependencies:\n\n \033[33m${list[@]}\033[0m\n"
+  test 'Unknown' == $os && dialog fatal "Unknown os, please manually install dependencies first. If already installed, add to the PATH."
+  # 用户确认
+  ensure 'Install the above dependencies' || dialog exit
+  # 安装
+  for dependence in ${list[@]}; do
+    install_$dependence
+  done
+}
+
 function check_workspace() {
   test -d $workspace && return
-  mkdir $workspace || dialog fatal "Workspace($workspace) created failed, please check directory permissions."
+  mkdir $workspace &> /dev/null || dialog fatal "Workspace($workspace) created failed, please check directory permissions."
 }
 
-# 检测依赖
-function check_cmd() {
-  check sha1sum
-  check expect
-  check jq
-}
-
-# 初始化
 function init() {
-  check_cmd
+  check_dependencies
   check_workspace
 }
 
