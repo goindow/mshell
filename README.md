@@ -16,13 +16,25 @@
 - expect，用于支持自动登录
 
 ## 使用
-- Managment Commands:
-  - mshell add                               Create one session
-  - mshell remove <ID[,...]>                 Remove one or more sessions
-  -        rm                                Alias for remove
-  - mshell update <ID>                       Update information of one session
-  - mshell inspect <ID>                      Return information of one or more sessions
-  - mshell list                              List sessions
-  -        ls                                Alias for lis
-- Commands:
-  - mshell ssh <ID>                          SSH to session, automatical login
+```shell
+Usage: mshell COMMAND [ARGS...]
+
+  SSH session management for Mac terminal, while support CentOS,
+  Ubuntu, Darwin, including automatic login, public key push etc.
+
+Managment Commands:
+  mshell add                               Create one session
+
+  mshell remove <ID[,...]>                 Remove one or more sessions
+         rm                                Alias for remove
+
+  mshell update <ID>                       Update information of one session
+
+  mshell inspect <ID>                      Return information of one or more sessions
+ 
+  mshell list                              List sessions
+         ls                                Alias for list
+
+Commands:
+  mshell ssh <ID>                          SSH to session, automatical login
+```
