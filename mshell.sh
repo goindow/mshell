@@ -209,8 +209,8 @@ function makecache() {
     remarks=$(echo $line | jq .remarks | trim)
     hostport="$host:$port"
     # 包含中文的字符串打印错位修正, offset、slice 计算
-    name_offset=$(printf_offset $name 16)
-    name_slice=$(printf_slice $name 16)
+    name_offset=$(printf_offset "$name" 16)
+    name_slice=$(printf_slice "$name" 16)
     printf "%-12s      %-$((16+$name_offset))s      %-21s      %-12s      %-s\n" "${id:0:12}" "${name:0:$name_slice}" "${hostport:0:24}" "${user:0:12}" "$remarks" >> $session_cache_file
   done < $session_list_file
 }
