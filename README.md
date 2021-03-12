@@ -11,9 +11,9 @@
 - Ubuntu
 
 ## 依赖说明
-- sha1sum       用于生成 Session ID
-- jq            用于 JSON 操作，Session 数据以 JSON 格式存储
-- expect        用于自动登录脚本
+- sha1sum，用于生成 Session ID
+- jq，用于 JSON 操作，Session 数据以 JSON 格式存储
+- expect，用于支持自动登录
 
 ## 使用
 - Managment Commands:
