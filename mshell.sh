@@ -49,9 +49,9 @@ function os() {
 }
 
 function adapter() {
-  test 'Darwin' == $os && echo "$(command -v brew)"
-  test 'CentOS' == $os && echo "$(command -v yum)"
-  test 'Ubuntu' == $os && echo "$(command -v apt-get)"
+  test 'Darwin' == $os && echo "$(command -v brew) install"
+  test 'CentOS' == $os && echo "$(command -v yum) install -y"
+  test 'Ubuntu' == $os && echo "$(command -v apt-get) install -y"
 }
 
 # 去除两端双引号
@@ -321,15 +321,15 @@ function ssh_session() {
 }
 
 function install_expect() {
-  $(adapter) install -y expect
+  $(adapter) expect
 }
 
 function install_jq() {
-  $(adapter) install -y jq
+  $(adapter) jq
 }
 
 function install_sha1sum() {
-  test 'Darwin' == $os && brew install -y md5sha1sum
+  test 'Darwin' == $os && brew install md5sha1sum
 }
 
 function install_brew() {
