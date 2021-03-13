@@ -329,6 +329,7 @@ function install_jq() {
 }
 
 function install_sha1sum() {
+  # CentOS、Ubuntu 无需安装
   test 'Darwin' == $os && brew install md5sha1sum
 }
 
