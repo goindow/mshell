@@ -1,5 +1,5 @@
 # mshell
-终端 SSH 会话管理，同时支持CentOS，Ubuntu，Darwin，包括会话的增删改查、自动登录、公钥推送等功能
+终端 SSH 会话管理，同时支持CentOS，Ubuntu，Darwin，包括会话的增删改查、自动登录、公钥推送、会话分组等功能
 
 ## 说明
 - 该工具主要争对 Mac 用户，以避免安装多个 Terminal，推荐使用**iTerm2+该工具**，则可同时支持 lrzsz 及 ssh 会话管理
