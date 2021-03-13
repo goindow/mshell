@@ -15,7 +15,7 @@
 - jq，用于 JSON 操作，Session 数据以 JSON 格式存储
 - expect，用于支持自动登录
 
-## 文件说明（默认存储在 ~/.mshell/ 下）
+## 文件说明（默认存储在 ~/.mshell/）
 - session.list，session 数据表
   - 如果嫌 mshell add/update 交互式操作麻烦，可以手动编辑该文件，缓存会自动更新，也可以手动调整 session 排序等，切记不要破坏数据结构
   - 如果需要更换设备或重装系统，可将该文件复制到新设备上，即可完成迁移
