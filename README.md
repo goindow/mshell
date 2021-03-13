@@ -10,10 +10,16 @@
 - CentOS
 - Ubuntu
 
-## 依赖说明
+## 依赖说明（自动安装）
 - sha1sum，用于生成 Session ID
 - jq，用于 JSON 操作，Session 数据以 JSON 格式存储
 - expect，用于支持自动登录
+
+## 文件说明（默认存储在 ~/.mshell/ 下）
+- session.list，session 数据表
+  - 如果嫌 mshell add/update 交互式操作麻烦，可以手动编辑该文件，缓存会自动更新，也可以手动调整 session 排序等，切记不要破坏数据结构
+- session.cache，mshell list 缓存
+- autologin.exp，expect 自动登录脚本
 
 ## 使用
 ```shell
@@ -39,3 +45,5 @@ Commands:
   mshell ssh <ID>                          SSH to session, automatical login
 ```
 
+## 示例
+![测试报告](https://github.com/goindow/mshell/blob/master/example/example.png)
