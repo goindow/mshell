@@ -49,3 +49,7 @@ Commands:
 
 ## 示例
 ![测试报告](https://github.com/goindow/mshell/blob/master/example/example.png)
+
+## todo:
+- 公钥推送
+- Session 分组
