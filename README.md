@@ -18,6 +18,8 @@
 ## 文件说明（默认存储在 ~/.mshell/ 下）
 - session.list，session 数据表
   - 如果嫌 mshell add/update 交互式操作麻烦，可以手动编辑该文件，缓存会自动更新，也可以手动调整 session 排序等，切记不要破坏数据结构
+  - 如果需要更换设备或重装系统，可将该文件复制到新设备上，即可完成迁移
+  - 注意！不要在共享设备上使用该工具（如若使用，切记销毁该文件），密码及相关数据都是明文存储
 - session.cache，mshell list 缓存
 - autologin.exp，expect 自动登录脚本
 
