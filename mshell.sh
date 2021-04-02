@@ -199,7 +199,7 @@ function printf_slice() {
 # 构建 list 缓存
 function makecache() {
   printf '' > $session_cache_file
-  printf '%-12s      %-16s      %-21s      %-12s      %-s\n' 'ID' 'NAME' 'SOURCE' 'USER' 'REMARKS' >> $session_cache_file
+  printf '%-12s      %-24s      %-21s      %-12s      %-s\n' 'ID' 'NAME' 'SOURCE' 'USER' 'REMARKS' >> $session_cache_file
   while read line; do
     id=$(echo $line | jq .id | trim)
     name=$(echo $line | jq .name | trim)
@@ -209,9 +209,9 @@ function makecache() {
     remarks=$(echo $line | jq .remarks | trim)
     hostport="$host:$port"
     # 包含中文的字符串打印错位修正, offset、slice 计算
-    name_offset=$(printf_offset "$name" 16)
-    name_slice=$(printf_slice "$name" 16)
-    printf "%-12s      %-$((16+$name_offset))s      %-21s      %-12s      %-s\n" "${id:0:12}" "${name:0:$name_slice}" "${hostport:0:24}" "${user:0:12}" "$remarks" >> $session_cache_file
+    name_offset=$(printf_offset "$name" 24)
+    name_slice=$(printf_slice "$name" 24)
+    printf "%-12s      %-$((24+$name_offset))s      %-21s      %-12s      %-s\n" "${id:0:12}" "${name:0:$name_slice}" "${hostport:0:24}" "${user:0:12}" "$remarks" >> $session_cache_file
   done < $session_list_file
 }
 
