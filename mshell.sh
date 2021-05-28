@@ -1,4 +1,6 @@
 #!/bin/bash
+# 解决使用 expect 脚本登录后，lrzsz 是失效问题
+export LC_CTYPE=en_US
 
 # 工作路径，可更换
 path=~
