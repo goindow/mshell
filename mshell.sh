@@ -4,7 +4,6 @@ export LC_CTYPE=en_US
 
 # 工作路径，可更换
 path=~
-
 # 工作区
 workspace=${path/%\//}/.mshell
 # session 数据表, json
