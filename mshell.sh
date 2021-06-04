@@ -41,6 +41,28 @@ Commands:
 EOF
 }
 
+# 生成 - 自动登录脚本
+function generate_autologin_script() {
+  cat > $autologin_expect_file << 'EOF'
+#!/usr/bin/expect
+# Usage: ./autologin.exp host port user [password]
+
+set host [lindex $argv 0]
+set port [lindex $argv 1]
+set user [lindex $argv 2]
+set pwd  [lindex $argv 3]
+
+spawn ssh -p $port $user@$host
+
+expect {
+  "yes/no" { send "yes\r"; exp_continue }
+  "assword:" { send "$pwd\r" }
+}
+
+interact
+EOF
+}
+
 function os() {
   os='Unknown'
   test -x "$(command -v yum)" && os='CentOS'
@@ -132,28 +154,6 @@ function ensure_onlyone_session_matched() {
   elif test $count -gt 1; then
     dialog error 'Too many sessions matched, please increase the length of ID search information.'
   fi
-}
-
-# 生成 - 自动登录脚本
-function generate_autologin_script() {
-  cat > $autologin_expect_file << 'EOF'
-#!/usr/bin/expect
-# Usage: ./autologin.exp host port user [password]
-
-set host [lindex $argv 0]
-set port [lindex $argv 1]
-set user [lindex $argv 2]
-set pwd  [lindex $argv 3]
-
-spawn ssh -p $port $user@$host
-
-expect {
-  "yes/no" { send "yes\r"; exp_continue }
-  "assword:" { send "$pwd\r" }
-}
-
-interact
-EOF
 }
 
 # 确保 - 自动登录脚本存在
