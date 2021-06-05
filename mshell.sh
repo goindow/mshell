@@ -12,6 +12,8 @@ session_list_file=$workspace/session.list
 session_cache_file=$workspace/session.cache
 # expect 自动登录脚本
 autologin_expect_file=$workspace/autologin.exp
+# expect 自动复制脚本
+autoscp_expect_file=$workspace/autoscp.exp
 
 ipv4="^([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$"
 
@@ -45,7 +47,7 @@ EOF
 function generate_autologin_script() {
   cat > $autologin_expect_file << 'EOF'
 #!/usr/bin/expect
-# Usage: ./autologin.exp host port user [password]
+# Usage: ./autologin.exp host port user [pwd]
 
 set host [lindex $argv 0]
 set port [lindex $argv 1]
@@ -63,18 +65,31 @@ interact
 EOF
 }
 
-function os() {
-  os='Unknown'
-  test -x "$(command -v yum)" && os='CentOS'
-  test -x "$(command -v apt-get)" && os='Ubuntu'
-  test 'Darwin' == $(uname -s) && os='Darwin'
-  echo $os
+# 生成 - scp 脚本
+# scp -P 22 -r /data0/shell/nginx_log_cutting.sh root@192.168.4.119:/data0/shell/
+function generate_autoscp_script() {
+  cat > $autoscp_expect_file << 'EOF'
+#!/usr/bin/expect
+# Usage: ./autoscp.exp type(push|pull) local remote host port user [pwd]
+
+set type [lindex $argv 0]
+set local [lindex $argv 1]
+set remote [lindex $argv 2]
+set host [lindex $argv 3]
+set port [lindex $argv 4]
+set user [lindex $argv 5]
+set pwd  [lindex $argv 6]
+
+if {"push" == $type} { spawn scp -P $port -r $local $user@$host:$remote }
+if {"pull" == $type} { spawn scp -P $port -r $user@$host:$remote $local }
+
+expect {
+  "yes/no" { send "yes\r"; exp_continue }
+  "assword:" { send "$pwd\r" }
 }
 
-function adapter() {
-  test 'Darwin' == $os && echo "$(command -v brew) install"
-  test 'CentOS' == $os && echo "$(command -v yum) install -y"
-  test 'Ubuntu' == $os && echo "$(command -v apt-get) install -y"
+interact
+EOF
 }
 
 # 去除两端双引号
@@ -87,6 +102,21 @@ function trim() {
 # $@ 数组元素
 function array_uniq() {
   test $# -ne 0 && echo $@ | sed 's/ /\'$'\n/g' | uniq
+}
+
+function os() {
+  os='Unknown'
+  test -x "$(command -v yum)" && os='CentOS'
+  test -x "$(command -v apt-get)" && os='Ubuntu'
+  test 'Darwin' == $(uname -s) && os='Darwin'
+  echo $os
+}
+
+# 适配安装器
+function adapter() {
+  test 'Darwin' == $os && echo "$(command -v brew) install"
+  test 'CentOS' == $os && echo "$(command -v yum) install -y"
+  test 'Ubuntu' == $os && echo "$(command -v apt-get) install -y"
 }
 
 # 通知
@@ -136,7 +166,16 @@ function ensure() {
   done
 }
 
-# 计数 - 符合条件的 session 数量
+# 打印 session 确认信息
+# $1 session ID, 模糊匹配
+function printf_ensure_session() {
+    session=$(cat $session_list_file | grep $1)
+    host=$(echo $session | jq .host | trim)
+    name=$(echo $session | jq .name | trim)
+    printf "  \033[32m%15s  %s\033[0m\n" $host $name
+}
+
+# 查询符合条件的 session 数量
 # $1 session ID, 模糊匹配
 function count_session() {
   test -e $session_list_file && cat $session_list_file | jq .id | grep $1 | wc -l || return 0
@@ -160,6 +199,12 @@ function ensure_onlyone_session_matched() {
 function ensure_autologin_script_exists() {
   test -x $autologin_expect_file && return
   generate_autologin_script && chmod +x $autologin_expect_file
+}
+
+# 确保 - 自动复制脚本存在
+function ensure_autoscp_script_exists() {
+  test -x $autoscp_expect_file && return
+  generate_autoscp_script && chmod +x $autoscp_expect_file
 }
 
 # 计算字符串中包含的中文个数, the number of chinese chars in a string
@@ -275,7 +320,7 @@ function update_session() {
 
 # 删除 session
 # $@ session IDs, 模糊匹配, 可以批量删除
-function remove_session() {
+function remove_sessions() {
   test $# -eq 0 && dialog error '"mshell remove|rm" requires at least one session ID as the argument.'
   # 待删除集合
   list=()
@@ -291,7 +336,7 @@ function remove_session() {
   list=($(array_uniq ${list[@]}))
   echo "Match to ${#list[@]} sessions:"
   for id in ${list[@]}; do
-    cat $session_list_file | grep $id | jq .
+    printf_ensure_session $id
   done
   # 用户确认
   ensure 'Remove the above session' || dialog exit
@@ -320,6 +365,69 @@ function ssh_session() {
   # Usage: ./autologin.exp host port user [password]
   $autologin_expect_file $host $port $user $password
 }
+
+# 推送文件
+# mshell push -f local:remote ids...
+#
+# mshell push -f /tmp/readme.md:/tmp/ edef8232fdf5 0ac25213ed77
+function scp_to_sessions() {
+  while getopts ':f:' options; do
+    case $options in
+      f)
+        file=$OPTARG
+      ;;
+    esac
+  done
+  shift $(($OPTIND - 1))
+  # 参数校验，-f local:remote
+  test -z $file && dialog error "Requires an argument -f, like \"mshell push -f local:remote ids...\"."
+  # ${files[0]} - local, ${files[1]} - remote
+  files=(${file/:/ })
+  test ${#files[@]} -le 1 && dialog error "Invalid argument -f, like \"mshell push -f local:remote ids...\"."
+  test ! -e ${files[0]} && dialog error "No such file or directory: ${files[0]}"
+  # 参数校验，ids 参数校验
+  test $# -eq 0 && dialog error '"mshell push" requires at least one session ID as the argument.'
+  # 待推送集合
+  list=()
+  for id in $@; do
+    count=$(count_session $id)
+    # 1, 只处理每个参数对应一个 session 的情况（如果某一个参数查询到多个 session，忽略）
+    if test $count -eq 1; then
+      list+=($(cat $session_list_file | jq .id | grep $id | trim))      
+    fi
+  done
+  test ${#list[@]} -eq 0 && dialog error "No matched session: $*"
+  # 匹配到 session
+  list=($(array_uniq ${list[@]}))
+  echo "Match to ${#list[@]} sessions:"
+  for id in ${list[@]}; do
+    printf_ensure_session $id
+  done
+  # 用户确认
+  ensure "Push ${files[0]} to the above session's ${files[1]}" || dialog exit
+  ensure_autoscp_script_exists
+  # 复制
+  for id in ${list[@]}; do
+    session=$(cat $session_list_file | grep $id)
+    host=$(echo $session | jq .host | trim)
+    port=$(echo $session | jq .port)
+    user=$(echo $session | jq .user | trim)
+    password=$(echo $session | jq .password | trim)
+    # Usage: ./autoscp.exp type(push|pull) local remote host port user [pwd]
+    printf "\n\e[5;33m%s\e[0m\n" "Push to $host..."
+    $autoscp_expect_file push ${files[0]} ${files[1]} $host $port $user $password
+    printf "\e[5;33m%s\e[0m\n" "Done."
+  done
+  echo 
+  dialog "ok"
+}
+
+# 拉取文件
+# scp -P 22 -r root@192.168.4.113:/data0/shell/nginx_log_cutting.sh /data0/shell/
+# function scp_from_session() {
+
+# }
+
 
 function install_expect() {
   $(adapter) expect
@@ -377,7 +485,7 @@ case $1 in
     add_session
   ;;
   remove|rm)
-    shift && remove_session $@
+    shift && remove_sessions $@
   ;;
   update)
     update_session $2
@@ -390,6 +498,12 @@ case $1 in
   ;;
   ssh)
     ssh_session $2
+  ;;
+  push)
+    shift && scp_to_sessions $@
+  ;;
+  pull)
+    shift && scp_from_session $@
   ;;
   *)
     usage
