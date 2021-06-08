@@ -22,12 +22,12 @@ function usage() {
 Usage: mshell COMMAND [ARGS...]
 
   SSH session management for Mac terminal, while support CentOS,
-  Ubuntu, Darwin, including automatic login, public key push etc.
+  Ubuntu, Darwin, including automatic login, file push etc.
 
 Managment Commands:
   mshell add                               Create one session
 
-  mshell remove <ID[,...]>                 Remove one or more sessions
+  mshell remove <ID[...]>                  Remove one or more sessions
          rm                                Alias for remove
 
   mshell update <ID>                       Update information of one session
@@ -38,7 +38,11 @@ Managment Commands:
          ls                                Alias for list
 
 Commands:
-  mshell ssh <ID>                          SSH to session, automatical login
+  mshell ssh <ID>                          SSH to session
+
+  mshell push -f local:remote <ID[...]>    Scp to one or more sessions
+
+  mshell pull -f remote:local <ID>         Scp from one session
   
 EOF
 }
@@ -368,8 +372,6 @@ function ssh_session() {
 
 # 推送文件
 # mshell push -f local:remote ids...
-#
-# mshell push -f /tmp/readme.md:/tmp/ edef8232fdf5 0ac25213ed77
 function scp_to_sessions() {
   while getopts ':f:' options; do
     case $options in
@@ -385,7 +387,7 @@ function scp_to_sessions() {
   files=(${file/:/ })
   test ${#files[@]} -le 1 && dialog error "Invalid argument -f, like \"mshell push -f local:remote ids...\"."
   test ! -e ${files[0]} && dialog error "No such file or directory: ${files[0]}"
-  # 参数校验，ids 参数校验
+  # 参数校验，session ids
   test $# -eq 0 && dialog error '"mshell push" requires at least one session ID as the argument.'
   # 待推送集合
   list=()
@@ -416,17 +418,37 @@ function scp_to_sessions() {
     # Usage: ./autoscp.exp type(push|pull) local remote host port user [pwd]
     printf "\n\e[5;33m%s\e[0m\n" "Push to $host..."
     $autoscp_expect_file push ${files[0]} ${files[1]} $host $port $user $password
-    printf "\e[5;33m%s\e[0m\n" "Done."
   done
-  echo 
-  dialog "ok"
 }
 
 # 拉取文件
-# scp -P 22 -r root@192.168.4.113:/data0/shell/nginx_log_cutting.sh /data0/shell/
-# function scp_from_session() {
-
-# }
+# mshell pull -f remote:local id
+function scp_from_session() {
+  while getopts ':f:' options; do
+    case $options in
+      f)
+        file=$OPTARG
+      ;;
+    esac
+  done
+  shift $(($OPTIND - 1))
+  # 参数校验，-f remote:local
+  test -z $file && dialog error "Requires an argument -f, like \"mshell pull -f remote:local id\"."
+  # ${files[0]} - remote, ${files[1]} - local
+  files=(${file/:/ })
+  test ${#files[@]} -le 1 && dialog error "Invalid argument -f, like \"mshell pull -f remote:local id\"."
+  # 参数校验，session id
+  test $# -gt 1 && dialog error "Too many arguments, like \"mshell pull -f remote:local id\"."
+  ensure_onlyone_session_matched 'mshell pull' $1
+  # 复制
+  session=$(cat $session_list_file | grep $1)
+  host=$(echo $session | jq .host | trim)
+  port=$(echo $session | jq .port)
+  user=$(echo $session | jq .user | trim)
+  password=$(echo $session | jq .password | trim)
+  # Usage: ./autoscp.exp type(push|pull) local remote host port user [pwd]
+  $autoscp_expect_file pull ${files[1]} ${files[0]} $host $port $user $password
+}
 
 
 function install_expect() {
