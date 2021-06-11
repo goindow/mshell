@@ -1,5 +1,7 @@
 #!/bin/bash
-# 解决使用 expect 脚本登录后，lrzsz 是失效问题
+# 取消通配符解析
+set -f
+# 解决使用 expect 脚本登录后 lrzsz 失效问题
 export LC_CTYPE=en_US
 
 # 工作路径，可更换
@@ -10,48 +12,40 @@ workspace=${path/%\//}/.mshell
 session_list_file=$workspace/session.list
 # session 缓存 - list|ls
 session_cache_file=$workspace/session.cache
-# expect 自动登录脚本
-autologin_expect_file=$workspace/autologin.exp
-# expect 自动复制脚本
-autoscp_expect_file=$workspace/autoscp.exp
 
-ipv4="^([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$"
+# expect 脚本
+ssh_expect_script=$workspace/ssh.exp
+scp_expect_script=$workspace/scp.exp
+pushkey_expect_script=$workspace/pushkey.exp
 
 function usage() {
   cat << 'EOF'
 Usage: mshell COMMAND [ARGS...]
 
-  SSH session management for Mac terminal, while support CentOS,
-  Ubuntu, Darwin, including automatic login, file push etc.
+  SSH session management for Mac terminal, while support CentOS, 
+  Ubuntu, Darwin, including automatic login, file exchange etc.
 
 Managment Commands:
-  mshell add                               Create one session
-
-  mshell remove <ID[...]>                  Remove one or more sessions
-         rm                                Alias for remove
-
-  mshell update <ID>                       Update information of one session
-
-  mshell inspect <ID>                      Return information of one or more sessions
- 
-  mshell list                              List sessions
-         ls                                Alias for list
+  add                                Create a new session
+  remove ID [ID...], rm              Remove one or more sessions
+  update ID                          Update information of a session
+  inspect ID                         Display information of a session
+  list, ls                           List sessions
 
 Commands:
-  mshell ssh <ID>                          SSH to session
-
-  mshell push -f local:remote <ID[...]>    Scp to one or more sessions
-
-  mshell pull -f remote:local <ID>         Scp from one session
+  ssh ID                             SSH to a session
+  pull -f remote:local ID            Pull file or directory from a session
+  push -f local:remote ID [ID...]    Push file or directory to one or more sessions
+  pushkey ID [ID...]                 Copy the ssh-key to one or more sessions
   
 EOF
 }
 
-# 生成 - 自动登录脚本
-function generate_autologin_script() {
-  cat > $autologin_expect_file << 'EOF'
+# 生成 ssh expect 自动应答脚本
+function generate_ssh_expect_script() {
+  cat > $ssh_expect_script << 'EOF'
 #!/usr/bin/expect
-# Usage: ./autologin.exp host port user [pwd]
+# Usage: ./ssh.exp host port user [pwd]
 
 set host [lindex $argv 0]
 set port [lindex $argv 1]
@@ -61,7 +55,7 @@ set pwd  [lindex $argv 3]
 spawn ssh -p $port $user@$host
 
 expect {
-  "yes/no" { send "yes\r"; exp_continue }
+  "yes/no" { send "yes\r" }
   "assword:" { send "$pwd\r" }
 }
 
@@ -69,12 +63,11 @@ interact
 EOF
 }
 
-# 生成 - scp 脚本
-# scp -P 22 -r /data0/shell/nginx_log_cutting.sh root@192.168.4.119:/data0/shell/
-function generate_autoscp_script() {
-  cat > $autoscp_expect_file << 'EOF'
+# 生成 scp expect 自动应答脚本
+function generate_scp_expect_script() {
+  cat > $scp_expect_script << 'EOF'
 #!/usr/bin/expect
-# Usage: ./autoscp.exp type(push|pull) local remote host port user [pwd]
+# Usage: ./scp.exp type(push|pull) local remote host port user [pwd]
 
 set type [lindex $argv 0]
 set local [lindex $argv 1]
@@ -84,15 +77,52 @@ set port [lindex $argv 4]
 set user [lindex $argv 5]
 set pwd  [lindex $argv 6]
 
-if {"push" == $type} { spawn scp -P $port -r $local $user@$host:$remote }
-if {"pull" == $type} { spawn scp -P $port -r $user@$host:$remote $local }
+set timeout -1
+set pushcmd "scp -P $port -r $local $user@$host:$remote"
+set pullcmd "scp -P $port -r $user@$host:$remote $local"
+
+# spawn 不能识别 shell 通配符，比如 ~，使用 spawn bash -c "shell_commands" 可以识别，并且可以使用 expect 变量
+if { "push" == $type } { spawn bash -c $pushcmd }
+if { "pull" == $type } { spawn bash -c $pullcmd }
 
 expect {
-  "yes/no" { send "yes\r"; exp_continue }
+  # 密码认证
+  "yes/no" { send "yes\r" }
   "assword:" { send "$pwd\r" }
+  # ssh-key 认证
+  # 没有匹配到任何规则时，就执行 “expect eof” 将会报 "spawn id exp6 not open"，加一段匹配 ssh-key 认证方式的应答即可
+  " " { 
+    if { "push" == $type } { exec sh -c { $pushcmd } }
+    if { "pull" == $type } { exec sh -c { $pullcmd } } 
+  }
 }
 
-interact
+expect eof
+EOF
+}
+
+# 生成 ssh-copy-id expect 自动应答脚本
+function generate_pushkey_expect_script() {
+  cat > $pushkey_expect_script << 'EOF'
+#!/usr/bin/expect
+# Usage: ./pushkey.exp host port user [pwd]
+
+set host [lindex $argv 0]
+set port [lindex $argv 1]
+set user [lindex $argv 2]
+set pwd  [lindex $argv 3]
+
+spawn ssh-copy-id -p $port $user@$host
+
+expect {
+  # 密码认证，第一次推送
+  "yes/no" { send "yes\r" }
+  "assword:" { send "$pwd\r" }
+  # ssh-key 认证，重复推送
+  "already exist" { exit }
+}
+
+expect eof
 EOF
 }
 
@@ -103,9 +133,9 @@ function trim() {
 }
 
 # 数组去重
-# $@ 数组元素
+# $@ 数组
 function array_uniq() {
-  test $# -ne 0 && echo $@ | sed 's/ /\'$'\n/g' | uniq
+  test $# -ne 0 && echo $@ | sed 's/ /\'$'\n/g' | sort | uniq
 }
 
 function os() {
@@ -135,7 +165,7 @@ function dialog() {
       printf '%s\n\n%s\n' "$2" 'For more details, see "mshell help".' && exit 1
     ;;
     info)
-      printf '%s\n\n%s\n' "$2" 'For more details, see "mshell help".'
+      printf '%s\n' "$2"
     ;;
     ok)
       echo 'OK.'
@@ -151,8 +181,8 @@ function dialog() {
 # $2 错误输入次数，默认 3 次
 # @return $?, 0 - 确认操作、1 - 取消操作
 function ensure() {
-  flag=${2:-3}
-  while test $flag -gt 0; do
+  chances=${2:-3}
+  while test $chances -gt 0; do
     read -p "$1, are you sure? [Y/n]: " input
     case $input in
         [yY][eE][sS]|[yY])
@@ -162,53 +192,88 @@ function ensure() {
           return 1
         ;;
         *)
-          flag=$(($flag - 1))
-          test $flag -le 0 && echo "exited." && exit 1
-          echo "Invalid input...($flag chances left)"
+          chances=$(($chances - 1))
+          test $chances -le 0 && echo "exited." && exit 1
+          echo "Invalid input...($chances chances left)"
         ;;
     esac
   done
 }
 
-# 打印 session 确认信息
-# $1 session ID, 模糊匹配
-function printf_ensure_session() {
-    session=$(cat $session_list_file | grep $1)
-    host=$(echo $session | jq .host | trim)
-    name=$(echo $session | jq .name | trim)
-    printf "  \033[32m%15s  %s\033[0m\n" $host $name
-}
-
-# 查询符合条件的 session 数量
+# 统计符合条件的 session 数量
 # $1 session ID, 模糊匹配
 function count_session() {
-  test -e $session_list_file && cat $session_list_file | jq .id | grep $1 | wc -l || return 0
+  test -e $session_list_file && cat $session_list_file | jq .id | grep $1 | wc -l || echo 0
 }
 
-# 确保 - 仅匹配一个 session
+# 确认匹配到的 sessions
+# $1 调用方命令, 用于提示
+# $2+ session IDs
+function confirm_sessions() {
+  which=${1:-'Operate'} && shift
+  echo "Match to $# sessions:"
+  for id in $@; do
+    session=$(cat $session_list_file | grep $id)
+    host=$(echo $session | jq .host | trim)
+    name=$(echo $session | jq .name | trim)
+    printf "  \033[32m%15s  %s\033[0m\n" $host "$name"
+  done
+  ensure "$which the above session" || dialog exit
+}
+
+# 获取 session 认证信息
+# $1 session ID
+function get_session_auth_info() {
+  session=$(cat $session_list_file | grep $1)
+  host=$(echo $session | jq .host | trim)
+  port=$(echo $session | jq .port)
+  user=$(echo $session | jq .user | trim)
+  password=$(echo $session | jq .password | trim)
+  auth=($host $port $user $password)
+  echo ${auth[@]}
+}
+
+# 获取仅匹配一个 session 列表
+# $@ session IDs, 模糊匹配
+function get_onlyone_session_matched_sessions() {
+  list=()
+  for id in $@; do
+    count=$(count_session $id)
+    # 1, 只处理每个参数对应一个 session 的情况（如果某一个参数查询到多个 session，忽略）
+    if test $count -eq 1; then
+      list+=($(cat $session_list_file | jq .id | grep $id | trim))
+    fi
+  done
+  array_uniq ${list[@]}
+}
+
+# 确保仅匹配一个 session
 # $1 调用方命令, 用于提示
 # $2 session ID, 模糊匹配
 function ensure_onlyone_session_matched() {
-  test -z $2 && dialog error "\"$1\" requires a session ID as the argument."
+  test -z $2 && dialog error "\"mshell $1\" requires a session ID as the argument."
   count=$(count_session $2)
   # 0、1+
   if test $count -eq 0; then
-    dialog error "No matched session: $2"
+    dialog error "No session matched: $2"
   elif test $count -gt 1; then
     dialog error 'Too many sessions matched, please increase the length of ID search information.'
   fi
 }
 
-# 确保 - 自动登录脚本存在
-function ensure_autologin_script_exists() {
-  test -x $autologin_expect_file && return
-  generate_autologin_script && chmod +x $autologin_expect_file
+# 确保 expect 相关脚本存在
+# $1 expect 脚本简称（$1_expect_script）
+function ensure_expect_script_exists() {
+  script=$(eval echo '$'$1_expect_script)
+  test -x $script && return
+  generate_$1_expect_script && chmod +x $script
 }
 
-# 确保 - 自动复制脚本存在
-function ensure_autoscp_script_exists() {
-  test -x $autoscp_expect_file && return
-  generate_autoscp_script && chmod +x $autoscp_expect_file
+# 确保 ssh key(rsa) 存在
+function ensure_ssh_key_exists() {
+  test -e ~/.ssh/id_rsa.pub -a -e ~/.ssh/id_rsa && return
+  printf "\n\e[5;33m%s\e[0m\n" "Generate ssh-key..."
+  ssh-keygen -b 1024 -t rsa -f ~/.ssh/id_rsa -P ""
 }
 
 # 计算字符串中包含的中文个数, the number of chinese chars in a string
@@ -248,8 +313,7 @@ function printf_slice() {
 
 # 构建 list 缓存
 function makecache() {
-  printf '' > $session_cache_file
-  printf '%-12s      %-24s      %-21s      %-12s      %-s\n' 'ID' 'NAME' 'SOURCE' 'USER' 'REMARKS' >> $session_cache_file
+  printf '%-12s      %-24s      %-21s      %-12s      %-s\n' 'ID' 'NAME' 'SOURCE' 'USER' 'REMARKS' > $session_cache_file
   while read line; do
     id=$(echo $line | jq .id | trim)
     name=$(echo $line | jq .name | trim)
@@ -268,6 +332,7 @@ function makecache() {
 # 构建 session
 # $1 session ID, 更新操作的时候带上, 不会修改 session ID; 新增操作不需要
 function build_session() {
+  ipv4="^([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$"
   # name
   read -p "Input session name: " name
   while test -z "$name"; do read -p "Input session name(Required): " name; done
@@ -281,7 +346,7 @@ function build_session() {
   # user, default root
   read -p "Input session user<Enter, root>: " user
   user=${user:-root}
-  # password, no password needed by secret key
+  # password, ssh-key 认证模式无需密码
   read -p "Input session password: " password
   # remarks
   read -p "Input session remarks: " remarks
@@ -293,7 +358,6 @@ function build_session() {
 
 # 查看 session 列表
 function list_session() {
-  # 更新缓存, -nt 如果左边文件比右边文件新, 则为真
   test $session_list_file -nt $session_cache_file && makecache
   test -e $session_cache_file && cat $session_cache_file || dialog info "Session list is empty, please add session first."
 }
@@ -301,20 +365,13 @@ function list_session() {
 # 查看 session 详情
 # $1 session ID, 模糊匹配
 function inspect_session() {
-  test -z $1 && dialog error '"mshell inspect" requires a session ID as the argument.' 
-  count=$(count_session $1)
-  # 0
-  test $count -eq 0 && dialog error "No matched session: $1"
-  # 0+
-  for id in $(cat $session_list_file | jq .id | grep $1); do
-    cat $session_list_file | grep $id | jq .
-  done
+  ensure_onlyone_session_matched inspect $1 && cat $session_list_file | grep $1 | jq .
 }
 
 # 更新 session
 # $1 session ID, 模糊匹配
 function update_session() {
-  ensure_onlyone_session_matched 'mshell update' $1
+  ensure_onlyone_session_matched update $1
   id=$(cat $session_list_file | jq .id | grep $1 | trim)
   session=$(build_session $id)
   # sed -i, Unix(Darwin) 和 Linux 有差异, 做兼容处理
@@ -322,28 +379,15 @@ function update_session() {
   dialog ok
 }
 
-# 删除 session
-# $@ session IDs, 模糊匹配, 可以批量删除
+
+# 批量删除 session
+# $@ session IDs, 模糊匹配
 function remove_sessions() {
   test $# -eq 0 && dialog error '"mshell remove|rm" requires at least one session ID as the argument.'
-  # 待删除集合
-  list=()
-  for id in $@; do
-    count=$(count_session $id)
-    # 1, 只处理每个参数对应一个 session 的情况（如果某一个参数查询到多个 session，忽略）
-    if test $count -eq 1; then
-      list+=($(cat $session_list_file | jq .id | grep $id | trim))      
-    fi
-  done
-  test ${#list[@]} -eq 0 && dialog error "No matched session: $*"
-  # 匹配到 session
-  list=($(array_uniq ${list[@]}))
-  echo "Match to ${#list[@]} sessions:"
-  for id in ${list[@]}; do
-    printf_ensure_session $id
-  done
-  # 用户确认
-  ensure 'Remove the above session' || dialog exit
+  # 待处理集合
+  list=($(get_onlyone_session_matched_sessions $@))
+  # 提示确认
+  test ${#list[@]} -gt 0 && confirm_sessions "Remove" ${list[@]} || dialog error "No session matched: $*"
   # 删除
   for id in ${list[@]}; do
     # sed -i, Unix(Darwin) 和 Linux 有差异, 做兼容处理
@@ -358,72 +402,17 @@ function add_session() {
 }
 
 # 登录 session
-function ssh_session() {
-  ensure_onlyone_session_matched 'mshell ssh' $1
-  ensure_autologin_script_exists
-  session=$(cat $session_list_file | grep $1)
-  host=$(echo $session | jq .host | trim)
-  port=$(echo $session | jq .port)
-  user=$(echo $session | jq .user | trim)
-  password=$(echo $session | jq .password | trim)
-  # Usage: ./autologin.exp host port user [password]
-  $autologin_expect_file $host $port $user $password
+function ssh_to_session() {
+  ensure_onlyone_session_matched ssh $1
+  ensure_expect_script_exists ssh
+  session=$(get_session_auth_info $1)
+  # Usage: ./ssh.exp host port user [password]
+  $ssh_expect_script ${session[0]} ${session[1]} ${session[2]} ${session[3]}
 }
 
-# 推送文件
-# mshell push -f local:remote ids...
-function scp_to_sessions() {
-  while getopts ':f:' options; do
-    case $options in
-      f)
-        file=$OPTARG
-      ;;
-    esac
-  done
-  shift $(($OPTIND - 1))
-  # 参数校验，-f local:remote
-  test -z $file && dialog error "Requires an argument -f, like \"mshell push -f local:remote ids...\"."
-  # ${files[0]} - local, ${files[1]} - remote
-  files=(${file/:/ })
-  test ${#files[@]} -le 1 && dialog error "Invalid argument -f, like \"mshell push -f local:remote ids...\"."
-  test ! -e ${files[0]} && dialog error "No such file or directory: ${files[0]}"
-  # 参数校验，session ids
-  test $# -eq 0 && dialog error '"mshell push" requires at least one session ID as the argument.'
-  # 待推送集合
-  list=()
-  for id in $@; do
-    count=$(count_session $id)
-    # 1, 只处理每个参数对应一个 session 的情况（如果某一个参数查询到多个 session，忽略）
-    if test $count -eq 1; then
-      list+=($(cat $session_list_file | jq .id | grep $id | trim))      
-    fi
-  done
-  test ${#list[@]} -eq 0 && dialog error "No matched session: $*"
-  # 匹配到 session
-  list=($(array_uniq ${list[@]}))
-  echo "Match to ${#list[@]} sessions:"
-  for id in ${list[@]}; do
-    printf_ensure_session $id
-  done
-  # 用户确认
-  ensure "Push ${files[0]} to the above session's ${files[1]}" || dialog exit
-  ensure_autoscp_script_exists
-  # 复制
-  for id in ${list[@]}; do
-    session=$(cat $session_list_file | grep $id)
-    host=$(echo $session | jq .host | trim)
-    port=$(echo $session | jq .port)
-    user=$(echo $session | jq .user | trim)
-    password=$(echo $session | jq .password | trim)
-    # Usage: ./autoscp.exp type(push|pull) local remote host port user [pwd]
-    printf "\n\e[5;33m%s\e[0m\n" "Push to $host..."
-    $autoscp_expect_file push ${files[0]} ${files[1]} $host $port $user $password
-  done
-}
-
-# 拉取文件
+# 拉取文件/目录
 # mshell pull -f remote:local id
-function scp_from_session() {
+function pull_from_session() {
   while getopts ':f:' options; do
     case $options in
       f)
@@ -437,19 +426,67 @@ function scp_from_session() {
   # ${files[0]} - remote, ${files[1]} - local
   files=(${file/:/ })
   test ${#files[@]} -le 1 && dialog error "Invalid argument -f, like \"mshell pull -f remote:local id\"."
-  # 参数校验，session id
-  test $# -gt 1 && dialog error "Too many arguments, like \"mshell pull -f remote:local id\"."
-  ensure_onlyone_session_matched 'mshell pull' $1
-  # 复制
-  session=$(cat $session_list_file | grep $1)
-  host=$(echo $session | jq .host | trim)
-  port=$(echo $session | jq .port)
-  user=$(echo $session | jq .user | trim)
-  password=$(echo $session | jq .password | trim)
-  # Usage: ./autoscp.exp type(push|pull) local remote host port user [pwd]
-  $autoscp_expect_file pull ${files[1]} ${files[0]} $host $port $user $password
+  # 准备
+  ensure_onlyone_session_matched pull $1
+  ensure_expect_script_exists scp
+  # 拉取
+  session=$(get_session_auth_info $1)
+  # Usage: ./scp.exp type(push|pull) local remote host port user [pwd]
+  $scp_expect_script pull ${files[1]} ${files[0]} ${session[0]} ${session[1]} ${session[2]} ${session[3]}
 }
 
+# 批量推送文件/目录
+# mshell push -f local:remote ids...
+function push_to_sessions() {
+  while getopts ':f:' options; do
+    case $options in
+      f)
+        file=$OPTARG
+      ;;
+    esac
+  done
+  shift $(($OPTIND - 1))
+  # 参数校验，-f local:remote
+  test -z $file && dialog error "Requires an argument -f, like \"mshell push -f local:remote ids...\"."
+  # ${files[0]} - local, ${files[1]} - remote
+  files=(${file/:/ })
+  test ${#files[@]} -le 1 && dialog error "Invalid argument -f, like \"mshell push -f local:remote ids...\"."
+  # 参数校验，session ids
+  test $# -eq 0 && dialog error '"mshell push" requires at least one session ID as the argument.'
+  # 待处理集合
+  list=($(get_onlyone_session_matched_sessions $@))
+  # 提示确认
+  test ${#list[@]} -gt 0 && confirm_sessions "Push ${files[0]} to" ${list[@]} || dialog error "No session matched: $*"
+  # 准备
+  ensure_expect_script_exists scp
+  # 推送
+  for id in ${list[@]}; do
+    session=$(get_session_auth_info $id)
+    printf "\n\e[5;33m%s\e[0m\n" "Push to $host..."
+    # Usage: ./scp.exp type(push|pull) local remote host port user [pwd]
+    $scp_expect_script push ${files[0]} ${files[1]} ${session[0]} ${session[1]} ${session[2]} ${session[3]}
+  done
+}
+
+# 批量推送 ssh key
+function pushkey_to_sessions() {
+  test $# -eq 0 && dialog error '"mshell pushkey" requires at least one session ID as the argument.'
+  # 待处理集合
+  list=($(get_onlyone_session_matched_sessions $@))
+  # 提示确认
+  test ${#list[@]} -gt 0 && confirm_sessions "Push ssh-key to" ${list[@]} || dialog error "No session matched: $*"
+  # 准备
+  ensure_ssh_key_exists
+  ensure_expect_script_exists pushkey
+  # 推送 ssh-key
+  for id in ${list[@]}; do
+    session=$(get_session_auth_info $id)
+    printf "\n\e[5;33m%s\e[0m\n" "Push ssh-key to $host..."
+    # Usage: ./pushkey.exp host port user [password]
+    $pushkey_expect_script ${session[0]} ${session[1]} ${session[2]} ${session[3]}
+  done
+  dialog ok
+}
 
 function install_expect() {
   $(adapter) expect
@@ -519,13 +556,16 @@ case $1 in
     list_session
   ;;
   ssh)
-    ssh_session $2
-  ;;
-  push)
-    shift && scp_to_sessions $@
+    ssh_to_session $2
   ;;
   pull)
-    shift && scp_from_session $@
+    shift && pull_from_session $@
+  ;;
+  push)
+    shift && push_to_sessions $@
+  ;;
+  pushkey)
+    shift && pushkey_to_sessions $@
   ;;
   *)
     usage
