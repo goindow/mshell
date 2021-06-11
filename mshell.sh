@@ -406,9 +406,8 @@ function add_session() {
 function ssh_to_session() {
   ensure_onlyone_session_matched ssh $1
   ensure_expect_script_exists ssh
-  session=$(get_session_auth_info $1)
   # Usage: ./ssh.exp host port user [password]
-  $ssh_expect_script ${session[0]} ${session[1]} ${session[2]} ${session[3]}
+  $ssh_expect_script $(get_session_auth_info $1)
 }
 
 # 拉取文件/目录
@@ -431,9 +430,8 @@ function pull_from_session() {
   ensure_onlyone_session_matched pull $1
   ensure_expect_script_exists scp
   # 拉取
-  session=$(get_session_auth_info $1)
   # Usage: ./scp.exp type(push|pull) local remote host port user [pwd]
-  $scp_expect_script pull ${files[1]} ${files[0]} ${session[0]} ${session[1]} ${session[2]} ${session[3]}
+  $scp_expect_script pull ${files[1]} ${files[0]} $(get_session_auth_info $1)
 }
 
 # 批量推送文件/目录
@@ -462,10 +460,10 @@ function push_to_sessions() {
   ensure_expect_script_exists scp
   # 推送
   for id in ${list[@]}; do
-    session=$(get_session_auth_info $id)
+    session=($(get_session_auth_info $id))
     printf "\n\e[5;33m%s\e[0m\n" "Push to ${session[0]}..."
     # Usage: ./scp.exp type(push|pull) local remote host port user [pwd]
-    $scp_expect_script push ${files[0]} ${files[1]} ${session[0]} ${session[1]} ${session[2]} ${session[3]}
+    $scp_expect_script push ${files[@]} ${session[@]}
   done
 }
 
@@ -481,10 +479,10 @@ function pushkey_to_sessions() {
   ensure_expect_script_exists pushkey
   # 推送 ssh-key
   for id in ${list[@]}; do
-    session=$(get_session_auth_info $id)
+    session=($(get_session_auth_info $id))
     printf "\n\e[5;33m%s\e[0m\n" "Push ssh-key to ${session[0]}..."
     # Usage: ./pushkey.exp host port user [password]
-    $pushkey_expect_script ${session[0]} ${session[1]} ${session[2]} ${session[3]}
+    $pushkey_expect_script ${session[@]}
   done
   dialog ok
 }
