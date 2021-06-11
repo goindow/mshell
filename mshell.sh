@@ -385,7 +385,9 @@ function remove_sessions() {
   test $# -eq 0 && dialog error '"mshell remove|rm" requires at least one session ID as the argument.'
   # 待处理集合
   list=($(get_onlyone_session_matched_sessions $@))
-  # 提示确认
+  # 提示确认pull.png
+push.png
+pushkey.png
   test ${#list[@]} -gt 0 && confirm_sessions "Remove" ${list[@]} || dialog error "No session matched: $*"
   # 删除
   for id in ${list[@]}; do
@@ -461,7 +463,7 @@ function push_to_sessions() {
   # 推送
   for id in ${list[@]}; do
     session=$(get_session_auth_info $id)
-    printf "\n\e[5;33m%s\e[0m\n" "Push to $host..."
+    printf "\n\e[5;33m%s\e[0m\n" "Push to ${session[0]}..."
     # Usage: ./scp.exp type(push|pull) local remote host port user [pwd]
     $scp_expect_script push ${files[0]} ${files[1]} ${session[0]} ${session[1]} ${session[2]} ${session[3]}
   done
@@ -480,7 +482,7 @@ function pushkey_to_sessions() {
   # 推送 ssh-key
   for id in ${list[@]}; do
     session=$(get_session_auth_info $id)
-    printf "\n\e[5;33m%s\e[0m\n" "Push ssh-key to $host..."
+    printf "\n\e[5;33m%s\e[0m\n" "Push ssh-key to ${session[0]}..."
     # Usage: ./pushkey.exp host port user [password]
     $pushkey_expect_script ${session[0]} ${session[1]} ${session[2]} ${session[3]}
   done
