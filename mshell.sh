@@ -379,7 +379,6 @@ function update_session() {
   dialog ok
 }
 
-
 # 批量删除 session
 # $@ session IDs, 模糊匹配
 function remove_sessions() {
