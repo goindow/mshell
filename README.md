@@ -59,4 +59,11 @@ Commands:
 ```
 
 ## 示例
-![测试报告](https://github.com/goindow/mshell/blob/main/example/example.png)
+- 会话管理
+![会话管理](https://github.com/goindow/mshell/blob/main/example/session-management.png)
+- 文件拉取
+![文件拉取](https://github.com/goindow/mshell/blob/main/example/pull.png)
+- 文件批量上传
+![文件批量上传](https://github.com/goindow/mshell/blob/main/example/push.png)
+- 公钥批量推送
+![公钥批量推送](https://github.com/goindow/mshell/blob/main/example/pushkey.png)
