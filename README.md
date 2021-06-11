@@ -59,4 +59,4 @@ Commands:
 ```
 
 ## 示例
-![测试报告](https://github.com/goindow/mshell/blob/master/example/example.png)
+![测试报告](https://github.com/goindow/mshell/blob/main/example/example.png)
