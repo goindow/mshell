@@ -385,9 +385,7 @@ function remove_sessions() {
   test $# -eq 0 && dialog error '"mshell remove|rm" requires at least one session ID as the argument.'
   # 待处理集合
   list=($(get_onlyone_session_matched_sessions $@))
-  # 提示确认pull.png
-push.png
-pushkey.png
+  # 提示确认
   test ${#list[@]} -gt 0 && confirm_sessions "Remove" ${list[@]} || dialog error "No session matched: $*"
   # 删除
   for id in ${list[@]}; do
