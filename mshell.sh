@@ -537,34 +537,14 @@ function init() {
 os=$(os)
 init
 case $1 in
-  add)
-    add_session
-  ;;
-  remove|rm)
-    shift && remove_sessions $@
-  ;;
-  update)
-    update_session $2
-  ;;
-  inspect)
-    inspect_session $2
-  ;;
-  list|ls)
-    list_session
-  ;;
-  ssh)
-    ssh_to_session $2
-  ;;
-  pull)
-    shift && pull_from_session $@
-  ;;
-  push)
-    shift && push_to_sessions $@
-  ;;
-  pushkey)
-    shift && pushkey_to_sessions $@
-  ;;
-  *)
-    usage
-  ;;
+  add)       add_session;;
+  remove|rm) shift && remove_sessions $@;;
+  update)    update_session $2;;
+  inspect)   inspect_session $2;;
+  list|ls)   list_session;;
+  ssh)       ssh_to_session $2;;
+  pull)      shift && pull_from_session $@;;
+  push)      shift && push_to_sessions $@;;
+  pushkey)   shift && pushkey_to_sessions $@;;
+  *)         usage;;
 esac
