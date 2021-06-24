@@ -158,20 +158,11 @@ function adapter() {
 # $2 通知内容
 function dialog() {
   case $1 in
-    fatal)
-      printf '%s\n' "$2" && exit 1
-    ;;
-    error)
-      printf '%s\n\n%s\n' "$2" 'For more details, see "mshell help".' && exit 1
-    ;;
-    info)
-      printf '%s\n' "$2"
-    ;;
-    ok)
-      echo 'OK.'
-    ;;
-    exit)
-      echo 'exited.'
+    fatal) printf '%s\n' "$2" && exit 1;;
+    error) printf '%s\n\n%s\n' "$2" 'For more details, see "mshell help".' && exit 1;;
+    info)  printf '%s\n' "$2";;
+    ok)    echo 'OK.';;
+    exit)  echo 'exited.';;
   esac
   exit 0
 }
