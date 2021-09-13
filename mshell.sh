@@ -1,8 +1,11 @@
 #!/bin/bash
 # 取消通配符解析
 set -f
+
 # 解决使用 expect 脚本登录后 lrzsz 失效问题
-export LC_CTYPE=en_US
+# 仅设置 CTYPE 虽然 lrzsz 可以正常使用，但是系统提示会出现中文乱码，故全切成 en_US
+#export LC_CTYPE=en_US
+export LC_ALL=en_US
 
 # 工作路径，可更换
 path=~
