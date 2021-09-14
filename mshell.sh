@@ -2,10 +2,6 @@
 # 取消通配符解析
 set -f
 
-# 解决使用 expect 脚本登录后 lrzsz 失效问题
-# 仅设置 CTYPE 虽然 lrzsz 可以正常使用，但是系统提示会出现中文乱码，故全切成 en_US
-#export LC_CTYPE=en_US
-export LC_ALL=en_US
 
 # 工作路径，可更换
 path=~
@@ -57,9 +53,17 @@ set pwd  [lindex $argv 3]
 
 spawn ssh -p $port $user@$host
 
+# 自动登录
 expect {
   "yes/no" { send "yes\r" }
   "assword:" { send "$pwd\r" }
+}
+
+# 登录成功后，恢复 LC_CTYPE，保证中文不乱码
+# 父shell 为了保证 lrzsz 可用，LC_CTYPE 被设置为了 en_US，会导致子 shell(自动登录后) 中文乱码
+expect "Last login:" {
+  sleep 0.3;
+  send "export LC_CTYPE=zh_CN.UTF-8\r"
 }
 
 interact
@@ -398,6 +402,8 @@ function add_session() {
 function ssh_to_session() {
   ensure_onlyone_session_matched ssh $1
   ensure_expect_script_exists ssh
+  # 解决使用 expect 脚本登录后 lrzsz 失效问题，在 expect 脚本钟恢复子shell 的 LC_CTYPE=zh_CN.UTF-8
+  export LC_CTYPE=en_US
   # Usage: ./ssh.exp host port user [password]
   $ssh_expect_script $(get_session_auth_info $1)
 }
