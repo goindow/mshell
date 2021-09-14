@@ -2,7 +2,6 @@
 # 取消通配符解析
 set -f
 
-
 # 工作路径，可更换
 path=~
 # 工作区
@@ -402,7 +401,7 @@ function add_session() {
 function ssh_to_session() {
   ensure_onlyone_session_matched ssh $1
   ensure_expect_script_exists ssh
-  # 解决使用 expect 脚本登录后 lrzsz 失效问题，在 expect 脚本钟恢复子shell 的 LC_CTYPE=zh_CN.UTF-8
+  # 解决使用 expect 脚本登录后 lrzsz 失效问题，在 expect 脚本中恢复子shell 的 LC_CTYPE=zh_CN.UTF-8
   export LC_CTYPE=en_US
   # Usage: ./ssh.exp host port user [password]
   $ssh_expect_script $(get_session_auth_info $1)
