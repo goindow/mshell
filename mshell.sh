@@ -56,6 +56,8 @@ spawn ssh -p $port $user@$host
 expect {
   "yes/no" { send "yes\r" }
   "assword:" { send "$pwd\r" }
+  # 登录失败
+  " " { exit }
 }
 
 # 登录成功后，恢复 LC_CTYPE，保证中文不乱码
