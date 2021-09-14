@@ -57,7 +57,7 @@ expect {
   "yes/no" { send "yes\r" }
   "assword:" { send "$pwd\r" }
   # 登录失败
-  " " { exit }
+  "onnection refused" { exit }
 }
 
 # 登录成功后，恢复 LC_CTYPE，保证中文不乱码
