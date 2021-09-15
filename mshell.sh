@@ -61,7 +61,7 @@ expect {
 }
 
 # 登录成功后，恢复 LC_CTYPE，保证中文不乱码
-# 父shell 为了保证 lrzsz 可用，LC_CTYPE 被设置为了 en_US，会导致子 shell(自动登录后) 中文乱码
+# 父 shell 为了保证 lrzsz 可用，LC_CTYPE 被设置为了 en_US，会导致子 shell(自动登录后) 中文乱码
 expect "Last login:" {
   sleep 0.3;
   send "export LC_CTYPE=zh_CN.UTF-8\r"
@@ -403,7 +403,7 @@ function add_session() {
 function ssh_to_session() {
   ensure_onlyone_session_matched ssh $1
   ensure_expect_script_exists ssh
-  # 解决使用 expect 脚本登录后 lrzsz 失效问题，在 expect 脚本中恢复子shell 的 LC_CTYPE=zh_CN.UTF-8
+  # 解决使用 expect 脚本登录后 lrzsz 失效问题，在 expect 脚本中恢复子 shell 的 LC_CTYPE=zh_CN.UTF-8
   export LC_CTYPE=en_US
   # Usage: ./ssh.exp host port user [password]
   $ssh_expect_script $(get_session_auth_info $1)
