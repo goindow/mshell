@@ -264,7 +264,7 @@ function ensure_onlyone_session_matched() {
 # $1 expect 脚本简称（$1_expect_script）
 function ensure_expect_script_exists() {
   script=$(eval echo '$'$1_expect_script)
-  test -x $script && return
+  test -x $script -a $script -nt $0 && return
   generate_$1_expect_script && chmod +x $script
 }
 
