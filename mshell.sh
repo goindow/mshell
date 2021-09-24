@@ -69,7 +69,7 @@ expect {
 
   # 不论是 "密码登录" 还是 "ssh-key 登录"，如果登录成功都执行一次如下匹配
   # 登录成功，恢复 LC_CTYPE，保证中文不乱码，父 shell 为了保证 lrzsz 可用，LC_CTYPE 被设置为了 en_US，会导致子 shell(自动登录后) 中文乱码
-  "ast login:" { sleep 0.1; send "export LC_CTYPE=zh_CN.UTF-8\r" }
+  "ast login:" { sleep 0.3; send "export LC_CTYPE=zh_CN.UTF-8\r" }
 }
 
 interact
