@@ -52,19 +52,24 @@ set pwd  [lindex $argv 3]
 
 spawn ssh -p $port $user@$host
 
-# 自动登录
+# 如果匹配到 "yes/no" ||"assword"，执行相应项操作后，由于有 exp_continue，则再次匹配该块
+# 如果匹配到 "ermission denied"||"onnection refused"||"ast login:"，执行相应项操作后，跳出该块，继续该块后执行
 expect {
-  "yes/no" { send "yes\r"; exp_continue }
-  "assword:" { send "$pwd\r" }
-  # 登录失败
+  # 拒绝连接，端口错误
   "onnection refused" { exit }
-}
 
-# 登录成功后，恢复 LC_CTYPE，保证中文不乱码
-# 父 shell 为了保证 lrzsz 可用，LC_CTYPE 被设置为了 en_US，会导致子 shell(自动登录后) 中文乱码
-expect "Last login:" {
-  sleep 0.3;
-  send "export LC_CTYPE=zh_CN.UTF-8\r"
+  # 密码登录
+  "yes/no" { send "yes\r"; exp_continue }
+  "assword:" { send "$pwd\r"; exp_continue }
+  # 登录失败，权限错误
+  "ermission denied" { exit }
+
+  # ssh-key 登录，跳过前面所有匹配，直接命中如下匹配
+  # do nothing
+
+  # 不论是 "密码登录" 还是 "ssh-key 登录"，如果登录成功都执行一次如下匹配
+  # 登录成功，恢复 LC_CTYPE，保证中文不乱码，父 shell 为了保证 lrzsz 可用，LC_CTYPE 被设置为了 en_US，会导致子 shell(自动登录后) 中文乱码
+  "ast login:" { sleep 0.1; send "export LC_CTYPE=zh_CN.UTF-8\r" }
 }
 
 interact
