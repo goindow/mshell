@@ -54,7 +54,7 @@ spawn ssh -p $port $user@$host
 
 # 自动登录
 expect {
-  "yes/no" { send "yes\r" }
+  "yes/no" { send "yes\r"; exp_continue }
   "assword:" { send "$pwd\r" }
   # 登录失败
   "onnection refused" { exit }
@@ -95,7 +95,7 @@ if { "pull" == $type } { spawn bash -c $pullcmd }
 
 expect {
   # 密码认证
-  "yes/no" { send "yes\r" }
+  "yes/no" { send "yes\r"; exp_continue }
   "assword:" { send "$pwd\r" }
   # ssh-key 认证
   # 没有匹配到任何规则时，就执行 “expect eof” 将会报 "spawn id exp6 not open"，加一段匹配 ssh-key 认证方式的应答即可
@@ -124,7 +124,7 @@ spawn ssh-copy-id -p $port $user@$host
 
 expect {
   # 密码认证，第一次推送
-  "yes/no" { send "yes\r" }
+  "yes/no" { send "yes\r"; exp_continue }
   "assword:" { send "$pwd\r" }
   # ssh-key 认证，重复推送
   "already exist" { exit }
