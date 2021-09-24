@@ -58,17 +58,17 @@ expect {
   # 拒绝连接，端口错误
   "onnection refused" { exit }
 
-  # 密码登录
+  # 密码认证
   "yes/no" { send "yes\r"; exp_continue }
   "assword:" { send "$pwd\r"; exp_continue }
-  # 登录失败，权限错误
+  # 认证失败，权限错误
   "ermission denied" { exit }
 
-  # ssh-key 登录，跳过前面所有匹配，直接命中如下匹配
+  # ssh-key 认证，跳过前面所有匹配，直接命中如下匹配
   # do nothing
 
-  # 不论是 "密码登录" 还是 "ssh-key 登录"，如果登录成功都执行一次如下匹配
-  # 登录成功，恢复 LC_CTYPE，保证中文不乱码，父 shell 为了保证 lrzsz 可用，LC_CTYPE 被设置为了 en_US，会导致子 shell(自动登录后) 中文乱码
+  # 不论是 "密码认证" 还是 "ssh-key 认证"，如果登录成功都执行一次如下匹配
+  # 认证成功，恢复 LC_CTYPE，保证中文不乱码，父 shell 为了保证 lrzsz 可用，LC_CTYPE 被设置为了 en_US，会导致子 shell(自动登录后) 中文乱码
   "ast login:" { sleep 0.3; send "export LC_CTYPE=zh_CN.UTF-8\r" }
 }
 
