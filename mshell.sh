@@ -6,7 +6,7 @@ set -f
 path=~
 # 工作区
 workspace=${path/%\//}/.mshell
-# session 数据表, json
+# session 数据表 - json
 session_list_file=$workspace/session.list
 # session 缓存 - list|ls
 session_cache_file=$workspace/session.cache
