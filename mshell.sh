@@ -82,6 +82,7 @@ function generate_scp_expect_script() {
 #!/usr/bin/expect
 # Usage: ./scp.exp type(push|pull) local remote host port user [pwd]
 
+set timeout -1
 set type [lindex $argv 0]
 set local [lindex $argv 1]
 set remote [lindex $argv 2]
@@ -90,13 +91,9 @@ set port [lindex $argv 4]
 set user [lindex $argv 5]
 set pwd  [lindex $argv 6]
 
-set timeout -1
-set pushcmd "scp -P $port -r $local $user@$host:$remote"
-set pullcmd "scp -P $port -r $user@$host:$remote $local"
-
 # spawn 不能识别 shell 通配符，比如 ~，使用 spawn bash -c "shell_commands" 可以识别，并且可以使用 expect 变量
-if { "push" == $type } { spawn bash -c $pushcmd }
-if { "pull" == $type } { spawn bash -c $pullcmd }
+if { "push" == $type } { spawn bash -c "scp -P $port -r $local $user@$host:$remote" }
+if { "pull" == $type } { spawn bash -c "scp -P $port -r $user@$host:$remote $local" }
 
 expect {
   # 拒绝连接，端口错误
@@ -139,7 +136,7 @@ expect {
 
   # ssh-key 认证
   # do nothing
-  
+
   # 重复推送
   "already exist" { exit }
 }
