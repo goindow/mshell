@@ -99,18 +99,18 @@ if { "push" == $type } { spawn bash -c $pushcmd }
 if { "pull" == $type } { spawn bash -c $pullcmd }
 
 expect {
+  # 拒绝连接，端口错误
+  "onnection refused" { exit }
+
   # 密码认证
   "yes/no" { send "yes\r"; exp_continue }
-  "assword:" { send "$pwd\r" }
-  # ssh-key 认证
-  # 没有匹配到任何规则时，就执行 “expect eof” 将会报 "spawn id exp6 not open"，加一段匹配 ssh-key 认证方式的应答即可
-  " " { 
-    if { "push" == $type } { exec sh -c { $pushcmd } }
-    if { "pull" == $type } { exec sh -c { $pullcmd } } 
-  }
-}
+  "assword:" { send "$pwd\r"; exp_continue }
+  # 认证失败，权限错误
+  "ermission denied" { exit }
 
-expect eof
+  # ssh-key 认证，跳过前面所有匹配
+  # do nothing
+}
 EOF
 }
 
