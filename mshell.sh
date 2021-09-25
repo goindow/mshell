@@ -52,8 +52,6 @@ set pwd  [lindex $argv 3]
 
 spawn ssh -p $port $user@$host
 
-# 如果匹配到 "yes/no" ||"assword"，执行相应项操作后，由于有 exp_continue，则再次匹配该块
-# 如果匹配到 "ermission denied"||"onnection refused"||"ast login:"，执行相应项操作后，跳出该块，继续该块后执行
 expect {
   # 拒绝连接，端口错误
   "onnection refused" { exit }
