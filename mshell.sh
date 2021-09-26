@@ -2,6 +2,10 @@
 # 取消通配符解析
 set -f
 
+# 版本修订号
+# 稳定版为最新 $tag，开发版为最新 $tag-dev
+revision=1.1.5-dev
+
 # 工作路径，可更换
 path=~
 # 工作区
@@ -25,17 +29,18 @@ Usage: mshell COMMAND [ARGS...]
 
 Managment Commands:
   add                                Create a new session
-  remove ID [ID...], rm              Remove one or more sessions
-  update ID                          Update information of a session
   inspect ID                         Display information of a session
   list, ls                           List sessions
+  remove ID [ID...], rm              Remove one or more sessions
+  update ID                          Update information of a session
 
 Commands:
-  ssh ID                             SSH to a session
   pull -f remote:local ID            Pull file or directory from a session
   push -f local:remote ID [ID...]    Push file or directory to one or more sessions
   pushkey ID [ID...]                 Copy the ssh-key to one or more sessions
-  
+  ssh ID                             SSH to a session
+  version, v                         Show the Mshell version information
+
 EOF
 }
 
@@ -282,39 +287,42 @@ function ensure_ssh_key_exists() {
   ssh-keygen -b 1024 -t rsa -f ~/.ssh/id_rsa -P ""
 }
 
-# 计算字符串中包含的中文个数, the number of chinese chars in a string
-# printf 中 %ns, 当输入中包含长字节字符串(中文)时, n 计算的是字符长度, 导致对齐失败, 我们希望一个长字节字符串算作一个长度
-# $1 原始字符串
-function ncc() {
-  char_length=$(($(echo $1 | wc -c) - 1))         # 一个中文3个 char 长度
-  unicode_length=${#1}                            # 一个中文1个 unicode 长
-  echo $((($char_length - $unicode_length) / 2))  # 一个中文两种计算方式的差值为 2（恰好屏幕中显示中文占用2个屏幕单位宽度）
-}
-
-# 屏幕输出包含中文的字符串的偏移量, n+offset 才是屏幕中包含中文字符串 printf 的正确长度
-# $1 原始字符串
-# $2 printf 格式化输出字符数 - "printf '%ns'" 中的 n
-function printf_offset() {
-  ncc=$(ncc $1)
-  ncc_max=$(($2/2))
-  offset=0                                              # $ncc == 0 || $ncc > $ncc_max
-  test 0 -lt $ncc -a $ncc -le $ncc_max && offset=$ncc   # 0 < $ncc <= $ncc_max
-  echo $offset
-}
-
-# 屏幕输出包含中文的字符串的切片长度, ${string:0:slice} 才是屏幕中在 n 限制下的正确字符串的最大切片长度, 不超过 n
-# $1 原始字符串
-# $2 printf 格式化输出字符数 - "printf '%ns'" 中的 n
-function printf_slice() {
-  ncc=$(ncc $1)
-  ncc_max=$(($2/2))
-  slice=$2                                              # $ncc == 0
-  if test 0 -lt $ncc -a $ncc -le $ncc_max; then         # 0 < $ncc <= $ncc_max
-    slice=$(($2-$ncc))
-  elif test $ncc_max -lt $ncc; then                     # $ncc > $ncc_max
-    slice=$(($2-$ncc_max))
+# 修正 prtinf 打印中英文混合字符串的输出不对齐问题
+# $1 原字符串
+# $2 期望占用的光标长度
+# @return substr，修正后的 prinrf 占位符填充字符串
+# @return $?, offset 修正后的 prinrf 占位符长度 %${offset}s
+function printf_revision() {
+  byte=$(($(echo "$1" | wc -c) - 1))              # 字符串字节数，一个中文 3 个字节
+  char=${#1}                                      # 字符串字符数，一个中文 1 个字符
+  byte3=$((($byte - $char) / 2))                  # 字符串中三字节（中文）字符数，一个三字节（中文）字符显示时占用两个光标长度
+  byte1=$(($char - $byte3))                       # 字符串中单字节（英文）字符数，一个单字节（英文）字符显示时占用一个光标长度
+  cursor=$(($byte3 * 2 + byte1))                  # 字符串占用光标长度
+  # 字符串全部展示所需的光标长度 <= 期望占用的光标长度
+  substr="$1"
+  offset=$byte3
+  # 字符串全部展示所需的光标长度 > 期望占用的光标长度，需要截取原字符串
+  if test $cursor -gt $2; then
+    offset=0
+    # 截取字符串，从最短字符数（展示的全是三字节（中文）字符）开始检测。截取策略为尽可能的使期望占用的光标长度被占满
+    i=$(($2 / 2))
+    while test $i -le $char; do
+      substr="${1:0:$i}"
+      substr_byte=$(($(echo "$substr" | wc -c) - 1))
+      substr_char=${#substr}
+      substr_byte3=$((($substr_byte - $substr_char) / 2))
+      substr_byte1=$(($substr_char - $substr_byte3))
+      substr_cursor=$(($substr_byte3 * 2 + substr_byte1))
+      if test $substr_cursor -gt $2; then
+        # 最后一个字符刚好为三字节（中文）字符，并且比 $2 大一个光标位，必须回退一个三字节（中文）字符（$i-1），又小一个光标位，于是补一个空格对齐
+        substr="${1:0:$(($i-1))} " && break
+      elif test $substr_cursor -eq $2; then
+        break
+      fi
+      ((i++))
+    done
   fi
-  echo $slice
+  echo "$substr" && return $(($2 + $offset))
 }
 
 # 构建 list 缓存
@@ -328,10 +336,12 @@ function makecache() {
     user=$(echo $line | jq .user | trim)
     remarks=$(echo $line | jq .remarks | trim)
     hostport="$host:$port"
-    # 包含中文的字符串打印错位修正, offset、slice 计算
-    name_offset=$(printf_offset "$name" 24)
-    name_slice=$(printf_slice "$name" 24)
-    printf "%-12s      %-$((24+$name_offset))s      %-21s      %-12s      %-s\n" "${id:0:12}" "${name:0:$name_slice}" "${hostport:0:24}" "${user:0:12}" "$remarks" >> $session_cache_file
+    # 修正 prtinf 打印中英文混合字符串的输出不对齐问题
+    name_substr=$(printf_revision "$name" 24)
+    name_offset=$?
+    user_substr=$(printf_revision "$user" 12)
+    user_offset=$?
+    printf "%-12s      %-${name_offset}s      %-21s      %-${user_offset}s      %-s\n" "${id:0:12}" "${name_substr}" "$hostport" "$user_substr" "$remarks" >> $session_cache_file
   done < $session_list_file
 }
 
@@ -553,5 +563,6 @@ case $1 in
   pull)      shift && pull_from_session $@;;
   push)      shift && push_to_sessions $@;;
   pushkey)   shift && pushkey_to_sessions $@;;
+  version|v) echo $revision;;
   *)         usage;;
 esac
