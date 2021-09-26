@@ -41,21 +41,22 @@
 ```shell
 Usage: mshell COMMAND [ARGS...]
 
-  SSH session management for Mac terminal, while support CentOS,
+  SSH session management for Mac terminal, while support CentOS, 
   Ubuntu, Darwin, including automatic login, file exchange etc.
 
 Managment Commands:
   add                                Create a new session
-  remove ID [ID...], rm              Remove one or more sessions
-  update ID                          Update information of a session
   inspect ID                         Display information of a session
   list, ls                           List sessions
+  remove ID [ID...], rm              Remove one or more sessions
+  update ID                          Update information of a session
 
 Commands:
-  ssh ID                             SSH to a session
   pull -f remote:local ID            Pull file or directory from a session
   push -f local:remote ID [ID...]    Push file or directory to one or more sessions
   pushkey ID [ID...]                 Copy the ssh-key to one or more sessions
+  ssh ID                             SSH to a session
+  version, v                         Show the Mshell version information
 ```
 
 ## 示例
