@@ -7,7 +7,6 @@ set -f
 # revision=1.1.5-dev
 revision=1.1.5
 
-
 # 工作路径，可更换
 path=~
 # 工作区
