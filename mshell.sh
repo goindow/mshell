@@ -4,8 +4,8 @@ set -f
 
 # 版本修订号
 # 稳定版为最新 $tag，开发版为最新 $tag-dev
-# revision=1.1.5-dev
-revision=1.1.5
+# revision=1.2.0-dev
+revision=1.2.0
 
 # 工作路径，可更换
 path=~
