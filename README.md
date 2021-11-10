@@ -26,7 +26,7 @@
 ## 依赖说明（自动安装）
 - sha1sum，用于生成 Session ID
 - jq，用于 JSON 操作，Session 数据以 JSON 格式存储
-- expect，用于支持自动登录
+- expect，用于支持自动应答脚本
 
 ## 文件说明（默认存储在 ~/.mshell/）
 - session.list，session 数据表
