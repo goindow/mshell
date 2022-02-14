@@ -52,6 +52,7 @@ Managment Commands:
   update ID                          Update information of a session
 
 Commands:
+  interact, it                       Use the cursor keys to select a session, and use the Enter key to login
   pull -f remote:local ID            Pull file or directory from a session
   push -f local:remote ID [ID...]    Push file or directory to one or more sessions
   pushkey ID [ID...]                 Copy the ssh-key to one or more sessions
