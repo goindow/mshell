@@ -4,8 +4,8 @@ set -f
 
 # 版本修订号
 # 稳定版为最新 $tag，开发版为最新 $tag-dev
-# revision=1.2.0-dev
-revision=1.2.0
+# revision=1.0.0-dev
+revision=1.3.0
 
 # 工作路径，可更换
 path=~
@@ -36,6 +36,7 @@ Managment Commands:
   update ID                          Update information of a session
 
 Commands:
+  interact, it                       Use the cursor keys to select a session, and use the Enter key to login
   pull -f remote:local ID            Pull file or directory from a session
   push -f local:remote ID [ID...]    Push file or directory to one or more sessions
   pushkey ID [ID...]                 Copy the ssh-key to one or more sessions
@@ -252,9 +253,7 @@ function get_onlyone_session_matched_sessions() {
   for id in $@; do
     count=$(count_session $id)
     # 1, 只处理每个参数对应一个 session 的情况（如果某一个参数查询到多个 session，忽略）
-    if test $count -eq 1; then
-      list+=($(cat $session_list_file | jq .id | grep $id | trim))
-    fi
+    test $count -eq 1 && list+=($(cat $session_list_file | jq .id | grep $id | trim))
   done
   array_uniq ${list[@]}
 }
@@ -265,12 +264,8 @@ function get_onlyone_session_matched_sessions() {
 function ensure_onlyone_session_matched() {
   test -z $2 && dialog error "\"mshell $1\" requires a session ID as the argument."
   count=$(count_session $2)
-  # 0、1+
-  if test $count -eq 0; then
-    dialog error "No session matched: $2"
-  elif test $count -gt 1; then
-    dialog error 'Too many sessions matched, please increase the length of ID search information.'
-  fi
+  test $count -eq 0 && dialog error "No session matched: $2"
+  test $count -gt 1 && dialog error 'Too many sessions matched, please increase the length of ID search information.'
 }
 
 # 确保 expect 相关脚本存在
@@ -288,6 +283,12 @@ function ensure_ssh_key_exists() {
   ssh-keygen -b 1024 -t rsa -f ~/.ssh/id_rsa -P ""
 }
 
+# 确保 session.cache 存在
+function ensure_session_cache_file_exists() {
+  test $session_list_file -nt $session_cache_file && makecache
+  test -e $session_cache_file || dialog fatal "Session list is empty, please add session first."
+}
+
 # 修正 prtinf 打印中英文混合字符串的输出不对齐问题
 # $1 原字符串
 # $2 期望占用的光标长度
@@ -303,7 +304,7 @@ function printf_revision() {
   substr="$1"
   offset=$byte3
   # 字符串全部展示所需的光标长度 > 期望占用的光标长度，需要截取原字符串
-  if test $cursor -gt $2; then
+  test $cursor -gt $2 && {
     offset=0
     # 截取字符串，从最短字符数（展示的全是三字节（中文）字符）开始检测。截取策略为尽可能的使期望占用的光标长度被占满
     i=$(($2 / 2))
@@ -322,7 +323,7 @@ function printf_revision() {
       fi
       ((i++))
     done
-  fi
+  }
   echo "$substr" && return $(($2 + $offset))
 }
 
@@ -373,10 +374,69 @@ function build_session() {
   printf '{"id":"%s", "name":"%s", "host":"%s", "port":%s, "user":"%s", "password":"%s", "remarks":"%s"}\n' $id "$name" $host $port "$user" "$password" "$remarks"
 }
 
+# 当前选中的 session 索引
+index=0
+
+# session 列表交互响应
+# $1 按键值
+function react() {
+  terminal_rows=$(stty size | awk '{print $1}')
+  session_count=$(cat $session_cache_file | wc -l)
+  case $1 in  
+    up)    test $index -gt 1 && index=$(($index - 1)) || index=$(($session_count - 1));;
+    down)  test $index -lt $(($session_count - 1)) && index=$(($index + 1)) || index=1;;
+    enter) ssh_to_session $(sed -n "$(($index + 1))p" $session_cache_file | awk '{print $1}')
+  esac
+  line=$(($index + 1))
+  # 标题
+  clear && sed -n 1p $session_cache_file
+  # 列表
+  start_index=2
+  test $terminal_rows -gt $session_count && end_index=$session_count || {
+    end_index=$(($terminal_rows - 1))
+    # 是否需要滚动
+    scroll=$(($index - $terminal_rows + 2))
+    test $scroll -gt 0 && {
+      start_index=$(($scroll + 2))
+      end_index=$(($index + 1))
+    } 
+  }
+  sed -ne $line's/^/\'$'\033[7m&/;'$line's/$/&\'$'\033[27m/;'"${start_index},${end_index}p" $session_cache_file
+}
+
+# session 列表交互
+function interact() {
+  while true; do
+    read -d '' -sn 1
+    test "$REPLY" = $'\e' && {
+      read -d '' -sn 1 -t1
+      test "$REPLY" = "[" && {
+        read -d '' -sn 1 -t1
+        case $REPLY in
+          A) react up;;
+          B) react down;;
+        esac
+      }
+    }
+    test "$REPLY" = $'\n' && react enter
+  done
+}
+
+# 查看 session 列表，提供交互式登录
+function list_session_interactive() {
+  ensure_session_cache_file_exists && clear
+  terminal_rows=$(stty size | awk '{print $1}')
+  session_count=$(cat $session_cache_file | wc -l)
+  start_index=1
+  test $terminal_rows -gt $session_count && end_index=$session_count || end_index=$(($terminal_rows - 1))
+  sed -n "$start_index,${end_index}p" $session_cache_file
+  interact
+}
+
 # 查看 session 列表
+# mshell ls [-i] 
 function list_session() {
-  test $session_list_file -nt $session_cache_file && makecache
-  test -e $session_cache_file && cat $session_cache_file || dialog info "Session list is empty, please add session first."
+  ensure_session_cache_file_exists && cat $session_cache_file
 }
 
 # 查看 session 详情
@@ -432,9 +492,7 @@ function ssh_to_session() {
 function pull_from_session() {
   while getopts ':f:' options; do
     case $options in
-      f)
-        file=$OPTARG
-      ;;
+      f) file=$OPTARG;;
     esac
   done
   shift $(($OPTIND - 1))
@@ -456,9 +514,7 @@ function pull_from_session() {
 function push_to_sessions() {
   while getopts ':f:' options; do
     case $options in
-      f)
-        file=$OPTARG
-      ;;
+      f) file=$OPTARG;;
     esac
   done
   shift $(($OPTIND - 1))
@@ -533,7 +589,6 @@ function check_dependencies() {
   # 缺失必要依赖
   echo -e "Lack of necessary dependencies:\n\n \033[33m${list[@]}\033[0m\n"
   test 'Unknown' == $os && dialog fatal "Unknown os, please manually install dependencies first. If already installed, add to the PATH."
-  # 用户确认
   ensure 'Install the above dependencies' || dialog exit
   # 安装
   for dependence in ${list[@]}; do
@@ -555,15 +610,16 @@ function init() {
 os=$(os)
 init
 case $1 in
-  add)       add_session;;
-  remove|rm) shift && remove_sessions $@;;
-  update)    update_session $2;;
-  inspect)   inspect_session $2;;
-  list|ls)   list_session;;
-  ssh)       ssh_to_session $2;;
-  pull)      shift && pull_from_session $@;;
-  push)      shift && push_to_sessions $@;;
-  pushkey)   shift && pushkey_to_sessions $@;;
-  version|v) echo $revision;;
-  *)         usage;;
+  add)         add_session;;
+  inspect)     inspect_session $2;;
+  list|ls)     list_session;;
+  remove|rm)   shift && remove_sessions $@;;
+  update)      update_session $2;;
+  interact|it) list_session_interactive;;
+  pull)        shift && pull_from_session $@;;
+  push)        shift && push_to_sessions $@;;
+  pushkey)     shift && pushkey_to_sessions $@;;
+  ssh)         ssh_to_session $2;;
+  version|v)   echo $revision;;
+  *)           usage;;
 esac
