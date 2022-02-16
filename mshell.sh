@@ -398,7 +398,7 @@ function react() {
     scroll=$(($index - $terminal_rows + 2))
     test $scroll -gt 0 && {
       start_index=$(($scroll + 2))
-      end_index=$(($index + 1))
+      end_index=$line
     } 
   }
   sed -ne $line's/^/\'$'\033[7m&/;'$line's/$/&\'$'\033[27m/;'"${start_index},${end_index}p" $session_cache_file
