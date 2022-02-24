@@ -5,7 +5,7 @@ set -f
 # 版本修订号
 # 稳定版为最新 $tag，开发版为最新 $tag-dev
 # revision=1.0.0-dev
-revision=1.3.0
+revision=1.3.1
 
 # 工作路径，可更换
 path=~
@@ -264,8 +264,11 @@ function get_onlyone_session_matched_sessions() {
 function ensure_onlyone_session_matched() {
   test -z $2 && dialog error "\"mshell $1\" requires a session ID as the argument."
   count=$(count_session $2)
-  test $count -eq 0 && dialog error "No session matched: $2"
-  test $count -gt 1 && dialog error 'Too many sessions matched, please increase the length of ID search information.'
+  if test $count -eq 0; then
+    dialog error "No session matched: $2" 
+  elif test $count -gt 1; then
+    dialog error 'Too many sessions matched, please increase the length of ID search information.' 
+  fi
 }
 
 # 确保 expect 相关脚本存在
@@ -287,6 +290,7 @@ function ensure_ssh_key_exists() {
 function ensure_session_cache_file_exists() {
   test $session_list_file -nt $session_cache_file && makecache
   test -e $session_cache_file || dialog fatal "Session list is empty, please add session first."
+  test $(cat $session_cache_file | wc -l) -gt 1 || dialog fatal "Session list is empty, please add session first."
 }
 
 # 修正 prtinf 打印中英文混合字符串的输出不对齐问题
