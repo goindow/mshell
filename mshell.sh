@@ -205,7 +205,7 @@ function ensure() {
           return 1
         ;;
         *)
-          chances=$(($chances - 1))
+          ((chances--))
           test $chances -le 0 && echo "exited." && exit 1
           echo "Invalid input...($chances chances left)"
         ;;
@@ -303,7 +303,7 @@ function printf_revision() {
   char=${#1}                                      # 字符串字符数，一个中文 1 个字符
   byte3=$((($byte - $char) / 2))                  # 字符串中三字节（中文）字符数，一个三字节（中文）字符显示时占用两个光标长度
   byte1=$(($char - $byte3))                       # 字符串中单字节（英文）字符数，一个单字节（英文）字符显示时占用一个光标长度
-  cursor=$(($byte3 * 2 + byte1))                  # 字符串占用光标长度
+  cursor=$(($byte3 * 2 + $byte1))                 # 字符串占用光标长度
   # 字符串全部展示所需的光标长度 <= 期望占用的光标长度
   substr="$1"
   offset=$byte3
@@ -318,7 +318,7 @@ function printf_revision() {
       substr_char=${#substr}
       substr_byte3=$((($substr_byte - $substr_char) / 2))
       substr_byte1=$(($substr_char - $substr_byte3))
-      substr_cursor=$(($substr_byte3 * 2 + substr_byte1))
+      substr_cursor=$(($substr_byte3 * 2 + $substr_byte1))
       if test $substr_cursor -gt $2; then
         # 最后一个字符刚好为三字节（中文）字符，并且比 $2 大一个光标位，必须回退一个三字节（中文）字符（$i-1），又小一个光标位，于是补一个空格对齐
         substr="${1:0:$(($i-1))} " && break
