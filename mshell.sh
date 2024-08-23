@@ -438,7 +438,6 @@ function list_session_interactive() {
 }
 
 # 查看 session 列表
-# mshell ls [-i] 
 function list_session() {
   ensure_session_cache_file_exists && cat $session_cache_file
 }
